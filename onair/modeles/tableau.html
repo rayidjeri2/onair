@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITRE__</title>
+<style>
+  :root {
+    color-scheme: light;
+    --fond: #f5f5f3; --surface-1: #fcfcfb; --bordure: #e3e2dd;
+    --texte: #0b0b0b; --texte-2: #52514e; --texte-3: #7a7973;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+    --rampe-0: #f2f6fc; --rampe-1: #2a78d6; --rampe-2: #123a6b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --fond: #121211; --surface-1: #1a1a19; --bordure: #34332f;
+      --texte: #ffffff; --texte-2: #c3c2b7; --texte-3: #8d8c83;
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+      --rampe-0: #1f2a38; --rampe-1: #3987e5; --rampe-2: #a9cbf5;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --fond: #121211; --surface-1: #1a1a19; --bordure: #34332f;
+    --texte: #ffffff; --texte-2: #c3c2b7; --texte-3: #8d8c83;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --rampe-0: #1f2a38; --rampe-1: #3987e5; --rampe-2: #a9cbf5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--fond); color: var(--texte);
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .page { max-width: 1100px; margin: 0 auto; padding: 32px 16px 64px; }
+  header h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  header p { margin: 0; color: var(--texte-2); font-size: 14px; }
+  .theme { float: right; background: var(--surface-1); color: var(--texte-2);
+    border: 1px solid var(--bordure); border-radius: 999px; padding: 6px 14px;
+    font-size: 13px; cursor: pointer; }
+  .tuiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin: 24px 0; }
+  .tuile { background: var(--surface-1); border: 1px solid var(--bordure); border-radius: 12px; padding: 14px 16px; }
+  .tuile .etiquette { font-size: 12px; color: var(--texte-3); text-transform: uppercase; letter-spacing: .04em; }
+  .tuile .valeur { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; margin-top: 4px; }
+  .tuile .note { font-size: 12.5px; color: var(--texte-2); }
+  .carte { background: var(--surface-1); border: 1px solid var(--bordure); border-radius: 14px;
+    padding: 18px 18px 8px; margin-bottom: 20px; }
+  .carte h2 { font-size: 16px; margin: 0 0 2px; }
+  .carte .sous { font-size: 13px; color: var(--texte-2); margin: 0 0 14px; }
+  .filtres { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+  .filtres select, .filtres button {
+    background: var(--surface-1); color: var(--texte); border: 1px solid var(--bordure);
+    border-radius: 8px; padding: 6px 10px; font-size: 13px; cursor: pointer; }
+  .filtres button[aria-pressed="true"] { border-color: var(--s1); color: var(--s1); }
+  .legende { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--texte-2); margin-bottom: 6px; }
+  .legende span { display: inline-flex; align-items: center; gap: 6px; }
+  .pastille { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .axe { fill: var(--texte-3); font-size: 11px; }
+  .grille { stroke: var(--bordure); stroke-width: 1; }
+  .infobulle { position: fixed; pointer-events: none; visibility: hidden;
+    background: var(--surface-1); border: 1px solid var(--bordure); border-radius: 10px;
+    padding: 9px 11px; font-size: 13px; color: var(--texte); box-shadow: 0 6px 24px rgba(0,0,0,.14);
+    z-index: 10; max-width: 260px; }
+  .infobulle b { font-weight: 600; }
+  .infobulle .ligne { display: flex; justify-content: space-between; gap: 14px; color: var(--texte-2); }
+  .infobulle .ligne b { color: var(--texte); }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--bordure); }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--texte-3); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  details { margin-bottom: 20px; }
+  summary { cursor: pointer; color: var(--texte-2); font-size: 13.5px; padding: 6px 0; }
+  footer { color: var(--texte-3); font-size: 12.5px; margin-top: 28px; }
+  @media (max-width: 560px) { .tuile .valeur { font-size: 24px; } header h1 { font-size: 22px; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <button class="theme" id="theme" type="button">Thème</button>
+    <h1 id="titre">__TITRE__</h1>
+    <p id="soustitre"></p>
+  </header>
+
+  <section class="tuiles" id="tuiles"></section>
+
+  <section class="carte">
+    <h2>Audience au fil de l'antenne</h2>
+    <p class="sous">Auditeurs simultanés, relevés toutes les <span id="pas"></span> minutes. Les bandes grisées sont les coupures publicitaires.</p>
+    <div class="filtres">
+      <label for="jour" style="font-size:13px;color:var(--texte-2)">Jour</label>
+      <select id="jour"></select>
+      <button id="btn-segments" type="button" aria-pressed="false">Détailler par public</button>
+    </div>
+    <div class="legende" id="legende-courbe"></div>
+    <svg id="courbe" viewBox="0 0 960 340" role="img" aria-label="Courbe d'audience"></svg>
+  </section>
+
+  <section class="carte">
+    <h2>Audience par jour et par heure</h2>
+    <p class="sous">Une case = une heure d'antenne ; plus la case est foncée, plus l'audience est forte.</p>
+    <svg id="carte-chaleur" viewBox="0 0 960 260" role="img" aria-label="Carte de chaleur jour/heure"></svg>
+  </section>
+
+  <section class="carte">
+    <h2>Audience moyenne par émission</h2>
+    <p class="sous">Moyenne des auditeurs simultanés pendant la diffusion.</p>
+    <svg id="classement" viewBox="0 0 960 320" role="img" aria-label="Classement des émissions"></svg>
+  </section>
+
+  <details>
+    <summary>Voir les données du classement sous forme de tableau</summary>
+    <div class="carte"><table id="tableau"></table></div>
+  </details>
+
+  <footer id="pied"></footer>
+</div>
+
+<div class="infobulle" id="infobulle" role="status" aria-live="polite"></div>
+
+<script id="donnees" type="application/json">__DONNEES__</script>
+<script>
+const D = JSON.parse(document.getElementById('donnees').textContent);
+const JOURS = ["lundi","mardi","mercredi","jeudi","vendredi","samedi","dimanche"];
+const COULEURS = ['var(--s1)','var(--s2)','var(--s3)','var(--s4)'];
+const NOMS_SEGMENTS = Object.keys(D.serie[0].segments);
+const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n));
+const fmtK = n => (n >= 1000 ? (n/1000).toFixed(n >= 10000 ? 0 : 1).replace('.', ',') + ' k' : fmt(n));
+const euros = n => new Intl.NumberFormat('fr-FR', {style:'currency', currency:'EUR', maximumFractionDigits:0}).format(n);
+const el = (n, a = {}, t) => { const e = document.createElementNS('http://www.w3.org/2000/svg', n);
+  for (const k in a) e.setAttribute(k, a[k]); if (t != null) e.textContent = t; return e; };
+
+document.getElementById('titre').textContent = D.station;
+document.getElementById('soustitre').textContent =
+  `Simulation sur ${D.jours} jour(s) · zone de diffusion de ${fmt(D.population)} personnes`;
+document.getElementById('pas').textContent = D.pas_minutes;
+document.getElementById('pied').textContent =
+  "Données issues d'une simulation à événements discrets — aucun chiffre d'audience réel.";
+
+/* ---------- indicateurs ---------- */
+const k = D.indicateurs;
+document.getElementById('tuiles').innerHTML = [
+  ['Audience moyenne', fmtK(k.audience_moyenne), 'auditeurs simultanés'],
+  ['Pic d’audience', fmtK(k.pic_audience), 'meilleur relevé de la période'],
+  ['Part de la population', (k.part_population*100).toFixed(1).replace('.', ',') + ' %', 'à l’écoute en moyenne'],
+  ['Recette publicitaire', euros(k.revenu_total), `sur ${D.jours} jour(s)`],
+  ['Départs pendant la pub', fmtK(k.abandons_pub), 'auditeurs perdus cumulés'],
+].map(([e, v, n]) => `<div class="tuile"><div class="etiquette">${e}</div><div class="valeur">${v}</div><div class="note">${n}</div></div>`).join('');
+
+/* ---------- infobulle ---------- */
+const bulle = document.getElementById('infobulle');
+function montrer(html, ev) {
+  bulle.innerHTML = html; bulle.style.visibility = 'visible';
+  const r = bulle.getBoundingClientRect();
+  let x = ev.clientX + 14, y = ev.clientY + 14;
+  if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - 14;
+  if (y + r.height > innerHeight - 8) y = ev.clientY - r.height - 14;
+  bulle.style.left = x + 'px'; bulle.style.top = y + 'px';
+}
+const cacher = () => { bulle.style.visibility = 'hidden'; };
+
+/* ---------- courbe ---------- */
+const selJour = document.getElementById('jour');
+selJour.innerHTML = ['<option value="*">Journée type (moyenne)</option>']
+  .concat(JOURS.filter(j => D.serie.some(p => p.jour === j))
+    .map(j => `<option value="${j}">${j.charAt(0).toUpperCase() + j.slice(1)}</option>`)).join('');
+let parSegments = false;
+const btnSeg = document.getElementById('btn-segments');
+btnSeg.onclick = () => { parSegments = !parSegments; btnSeg.setAttribute('aria-pressed', parSegments); dessinerCourbe(); };
+selJour.onchange = dessinerCourbe;
+
+function pointsCourbe() {
+  const jour = selJour.value;
+  if (jour !== '*') return D.serie.filter(p => p.jour === jour);
+  const par = new Map();
+  for (const p of D.serie) {
+    const cle = Math.round((p.minute % 1440) / D.pas_minutes);
+    if (!par.has(cle)) par.set(cle, []);
+    par.get(cle).push(p);
+  }
+  return [...par.entries()].sort((a, b) => a[0] - b[0]).map(([cle, ps]) => {
+    const moy = o => ps.reduce((s, p) => s + o(p), 0) / ps.length;
+    const segments = {};
+    for (const n of NOMS_SEGMENTS) segments[n] = moy(p => p.segments[n]);
+    return { heure: cle * D.pas_minutes / 60, auditeurs: moy(p => p.auditeurs),
+             emission: ps[0].emission, pub: ps.filter(p => p.pub).length > ps.length / 2, segments };
+  });
+}
+
+function dessinerCourbe() {
+  const svg = document.getElementById('courbe');
+  svg.textContent = '';
+  const pts = pointsCourbe();
+  const G = { g: 58, d: 16, h: 16, b: 46 }, L = 960, H = 340;
+  const l = L - G.g - G.d, ha = H - G.h - G.b;
+  const maxY = Math.max(...pts.map(p => p.auditeurs)) * 1.1 || 1;
+  const x = h => G.g + (h / 24) * l;
+  const y = v => G.h + ha - (v / maxY) * ha;
+
+  for (let i = 0; i <= 4; i++) {
+    const v = maxY * i / 4;
+    svg.append(el('line', { x1: G.g, x2: L - G.d, y1: y(v), y2: y(v), class: 'grille' }));
+    svg.append(el('text', { x: G.g - 10, y: y(v) + 4, class: 'axe', 'text-anchor': 'end' }, fmtK(v)));
+  }
+  for (let h = 0; h <= 24; h += 2)
+    svg.append(el('text', { x: x(h), y: H - G.b + 20, class: 'axe', 'text-anchor': 'middle' }, h + 'h'));
+
+  // bandes publicitaires
+  for (const p of pts) if (p.pub)
+    svg.append(el('rect', { x: x(p.heure), y: G.h, width: Math.max(1.5, l * (D.pas_minutes / 60) / 24),
+      height: ha, fill: 'var(--texte-3)', opacity: .16 }));
+
+  const legende = document.getElementById('legende-courbe');
+  if (parSegments) {
+    let cumul = pts.map(() => 0);
+    NOMS_SEGMENTS.forEach((nom, i) => {
+      const bas = cumul.slice();
+      cumul = cumul.map((c, j) => c + pts[j].segments[nom]);
+      const haut = pts.map((p, j) => `${x(p.heure)},${y(cumul[j])}`).join(' ');
+      const retour = pts.map((p, j) => `${x(p.heure)},${y(bas[j])}`).reverse().join(' ');
+      svg.append(el('polygon', { points: haut + ' ' + retour, fill: COULEURS[i % 4],
+        stroke: 'var(--surface-1)', 'stroke-width': 2, opacity: .92 }));
+    });
+    legende.innerHTML = NOMS_SEGMENTS.map((n, i) =>
+      `<span><i class="pastille" style="background:${COULEURS[i % 4]}"></i>${n}</span>`).join('');
+  } else {
+    const d = pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.heure)},${y(p.auditeurs)}`).join(' ');
+    svg.append(el('path', { d: d + ` L${x(pts[pts.length-1].heure)},${y(0)} L${x(pts[0].heure)},${y(0)} Z`,
+      fill: 'var(--s1)', opacity: .10 }));
+    svg.append(el('path', { d, fill: 'none', stroke: 'var(--s1)', 'stroke-width': 2,
+      'stroke-linejoin': 'round' }));
+    legende.innerHTML = '';
+  }
+
+  const viseur = el('line', { y1: G.h, y2: G.h + ha, stroke: 'var(--texte-3)', 'stroke-width': 1, opacity: 0 });
+  const marqueur = el('circle', { r: 5, fill: 'var(--s1)', stroke: 'var(--surface-1)', 'stroke-width': 2, opacity: 0 });
+  svg.append(viseur, marqueur);
+  const zone = el('rect', { x: G.g, y: G.h, width: l, height: ha, fill: 'transparent' });
+  svg.append(zone);
+
+  zone.addEventListener('pointermove', ev => {
+    const r = svg.getBoundingClientRect();
+    const heure = ((ev.clientX - r.left) / r.width * L - G.g) / l * 24;
+    let p = pts[0];
+    for (const q of pts) if (Math.abs(q.heure - heure) < Math.abs(p.heure - heure)) p = q;
+    viseur.setAttribute('x1', x(p.heure)); viseur.setAttribute('x2', x(p.heure));
+    viseur.setAttribute('opacity', .5);
+    marqueur.setAttribute('cx', x(p.heure)); marqueur.setAttribute('cy', y(p.auditeurs));
+    marqueur.setAttribute('opacity', parSegments ? 0 : 1);
+    const hh = String(Math.floor(p.heure)).padStart(2, '0') + 'h' +
+      String(Math.round((p.heure % 1) * 60)).padStart(2, '0');
+    const detail = parSegments ? NOMS_SEGMENTS.map((n, i) =>
+      `<div class="ligne"><span><i class="pastille" style="background:${COULEURS[i%4]}"></i> ${n}</span><b>${fmtK(p.segments[n])}</b></div>`).join('') : '';
+    montrer(`<b>${hh} · ${p.emission}</b>${p.pub ? ' <span style="color:var(--texte-3)">(pub)</span>' : ''}
+      <div class="ligne"><span>Auditeurs</span><b>${fmt(p.auditeurs)}</b></div>${detail}`, ev);
+  });
+  zone.addEventListener('pointerleave', () => {
+    cacher(); viseur.setAttribute('opacity', 0); marqueur.setAttribute('opacity', 0);
+  });
+}
+
+/* ---------- carte de chaleur ---------- */
+function melange(a, b, t) {
+  const p = c => c.match(/\w\w/g).map(v => parseInt(v, 16));
+  const [r1,g1,b1] = p(a), [r2,g2,b2] = p(b);
+  const m = (u, v) => Math.round(u + (v - u) * t);
+  return `rgb(${m(r1,r2)},${m(g1,g2)},${m(b1,b2)})`;
+}
+function teinte(t) {
+  const s = getComputedStyle(document.documentElement);
+  const c0 = s.getPropertyValue('--rampe-0').trim(), c1 = s.getPropertyValue('--rampe-1').trim(),
+        c2 = s.getPropertyValue('--rampe-2').trim();
+  return t < .5 ? melange(c0, c1, t * 2) : melange(c1, c2, (t - .5) * 2);
+}
+function dessinerCarte() {
+  const svg = document.getElementById('carte-chaleur');
+  svg.textContent = '';
+  const M = D.jour_heure, G = { g: 84, d: 16, h: 12, b: 34 }, L = 960, H = 260;
+  const jours = JOURS.filter((j, i) => M[i].some(v => v > 0));
+  const cw = (L - G.g - G.d) / 24, ch = (H - G.h - G.b) / Math.max(jours.length, 1);
+  const max = Math.max(...M.flat()) || 1;
+  jours.forEach((jour, i) => {
+    const ligne = M[JOURS.indexOf(jour)];
+    svg.append(el('text', { x: G.g - 12, y: G.h + i * ch + ch / 2 + 4, class: 'axe', 'text-anchor': 'end' },
+      jour.charAt(0).toUpperCase() + jour.slice(1)));
+    ligne.forEach((v, h) => {
+      const c = el('rect', { x: G.g + h * cw + 1, y: G.h + i * ch + 1, width: cw - 2, height: ch - 2,
+        rx: 3, fill: teinte(v / max) });
+      c.addEventListener('pointermove', ev => montrer(
+        `<b>${jour.charAt(0).toUpperCase() + jour.slice(1)} ${h}h</b>
+         <div class="ligne"><span>Auditeurs</span><b>${fmt(v)}</b></div>`, ev));
+      c.addEventListener('pointerleave', cacher);
+      svg.append(c);
+    });
+  });
+  for (let h = 0; h <= 23; h += 2)
+    svg.append(el('text', { x: G.g + h * cw + cw / 2, y: H - G.b + 20, class: 'axe', 'text-anchor': 'middle' }, h + 'h'));
+}
+
+/* ---------- classement ---------- */
+function dessinerClassement() {
+  const svg = document.getElementById('classement');
+  svg.textContent = '';
+  const E = D.emissions, L = 960, G = { g: 180, d: 70, h: 8 };
+  const hb = 30, ecart = 10, H = E.length * (hb + ecart) + 24;
+  svg.setAttribute('viewBox', `0 0 ${L} ${H}`);
+  const max = Math.max(...E.map(e => e.audience_moyenne)) || 1;
+  E.forEach((e, i) => {
+    const y = G.h + i * (hb + ecart), w = (e.audience_moyenne / max) * (L - G.g - G.d);
+    svg.append(el('text', { x: G.g - 12, y: y + hb / 2 + 4, class: 'axe', 'text-anchor': 'end',
+      fill: 'var(--texte-2)' }, e.nom));
+    const r = el('rect', { x: G.g, y, width: Math.max(w, 2), height: hb, rx: 4, fill: 'var(--s1)' });
+    r.addEventListener('pointermove', ev => montrer(
+      `<b>${e.nom}</b><div class="ligne"><span>Genre</span><b>${e.genre}</b></div>
+       <div class="ligne"><span>Animateur</span><b>${e.animateur}</b></div>
+       <div class="ligne"><span>Audience moyenne</span><b>${fmt(e.audience_moyenne)}</b></div>
+       <div class="ligne"><span>Pic</span><b>${fmt(e.pic)}</b></div>
+       <div class="ligne"><span>Recette pub</span><b>${euros(e.revenu)}</b></div>`, ev));
+    r.addEventListener('pointerleave', cacher);
+    svg.append(r);
+    svg.append(el('text', { x: G.g + Math.max(w, 2) + 10, y: y + hb / 2 + 4, class: 'axe' },
+      fmtK(e.audience_moyenne)));
+  });
+}
+
+/* ---------- tableau ---------- */
+document.getElementById('tableau').innerHTML =
+  '<thead><tr><th>Émission</th><th>Genre</th><th>Animateur</th><th>Audience moyenne</th><th>Pic</th><th>Heures d’antenne</th><th>Départs pub</th><th>Recette</th></tr></thead><tbody>' +
+  D.emissions.map(e => `<tr><td>${e.nom}</td><td>${e.genre}</td><td>${e.animateur}</td>
+    <td>${fmt(e.audience_moyenne)}</td><td>${fmt(e.pic)}</td><td>${String(e.heures_antenne).replace('.', ',')}</td>
+    <td>${fmt(e.abandons_pub)}</td><td>${euros(e.revenu)}</td></tr>`).join('') + '</tbody>';
+
+/* ---------- thème ---------- */
+document.getElementById('theme').onclick = () => {
+  const sombre = getComputedStyle(document.body).backgroundColor === 'rgb(18, 18, 17)';
+  document.documentElement.setAttribute('data-theme', sombre ? 'light' : 'dark');
+  dessinerCarte();
+};
+
+dessinerCourbe(); dessinerCarte(); dessinerClassement();
+addEventListener('resize', () => { cacher(); });
+</script>
+</body>
+</html>
