@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Une société</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🏕️</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ÉCRAN D'ACCUEIL -->
+<section id="accueil" class="accueil">
+  <div class="accueil-carte">
+    <h1>Une société</h1>
+    <p class="accroche">
+      Un million de kilomètres carrés de terre vierge. Une personne qui arrive,
+      pose son sac, et construit une maison avec un champ. Tout le reste dépendra
+      de qui vous ferez venir, et quand.
+    </p>
+    <div class="champ"><label for="a-nom">Nom de la fondatrice ou du fondateur</label>
+      <input id="a-nom" value="Ana" maxlength="24"></div>
+    <div class="deux">
+      <div class="champ"><label for="a-age">Âge</label>
+        <input id="a-age" type="number" value="30" min="16" max="70"></div>
+      <div class="champ"><label for="a-graine">Graine du hasard</label>
+        <input id="a-graine" type="number" value="1" min="1"></div>
+    </div>
+    <button id="a-commencer" class="primaire grand">Poser le premier sac</button>
+    <button id="a-charger" class="discret">Reprendre une partie sauvegardée</button>
+    <p class="note">Le temps n'avance que lorsque vous le décidez.</p>
+  </div>
+</section>
+
+<!-- JEU -->
+<div id="jeu" hidden>
+  <header class="barre">
+    <div class="bloc-date">
+      <strong id="b-date">—</strong>
+      <span id="b-meteo" class="sous">—</span>
+    </div>
+    <div class="indicateurs" id="b-indicateurs"></div>
+    <div class="commandes">
+      <button data-jours="1">+1 j</button>
+      <button data-jours="7">+7 j</button>
+      <button data-jours="30">+30 j</button>
+      <button id="b-auto" class="primaire">▶ Laisser filer</button>
+      <button id="b-sauver" class="discret" title="Sauvegarder">💾</button>
+      <button id="b-recommencer" class="discret" title="Repartir de zéro">↺</button>
+      <button id="b-theme" class="discret" title="Thème">◐</button>
+    </div>
+  </header>
+
+  <main class="grille">
+    <!-- colonne gauche -->
+    <section class="carte">
+      <h2>Habitants <span id="p-compte" class="pastille-compte">0</span></h2>
+      <p class="sous">Chacun ne fait qu'une chose par jour. C'est là que tout se joue.</p>
+      <div id="p-liste" class="personnes"></div>
+      <button id="p-ajouter" class="primaire large">＋ Faire venir quelqu'un</button>
+      <p class="note" id="p-note"></p>
+    </section>
+
+    <!-- colonne centre -->
+    <section class="colonne-centre">
+      <div class="carte">
+        <h2>Le lieu</h2>
+        <p class="sous" id="c-territoire">—</p>
+        <svg id="c-carte" viewBox="0 0 600 260" role="img" aria-label="Plan du lieu"></svg>
+        <div id="c-batiments" class="chips"></div>
+      </div>
+
+      <div class="carte" id="c-chantier-bloc">
+        <h2>Chantier</h2>
+        <div id="c-chantier"></div>
+      </div>
+
+      <div class="carte">
+        <h2>Ce qu'on peut entreprendre</h2>
+        <div class="filtres" id="c-filtres"></div>
+        <div id="c-catalogue" class="catalogue"></div>
+      </div>
+    </section>
+
+    <!-- colonne droite -->
+    <section class="colonne-droite">
+      <div class="carte">
+        <h2>Ressources</h2>
+        <div id="r-liste" class="ressources"></div>
+      </div>
+      <div class="carte">
+        <h2>Trajectoire</h2>
+        <div id="r-graphiques"></div>
+      </div>
+      <div class="carte">
+        <h2>Journal</h2>
+        <div id="r-journal" class="journal"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- MODALE : NOUVELLE PERSONNE -->
+<dialog id="modale-personne">
+  <form method="dialog">
+    <h2>Quelqu'un arrive</h2>
+    <p class="sous">Une personne de plus, c'est deux bras — et une bouche, un lit,
+      et un peu plus de coordination à tenir.</p>
+    <div class="champ"><label for="n-nom">Nom</label><input id="n-nom" maxlength="24"></div>
+    <div class="deux">
+      <div class="champ"><label for="n-age">Âge</label>
+        <input id="n-age" type="number" value="28" min="1" max="90"></div>
+      <div class="champ"><label for="n-specialite">Savoir-faire principal</label>
+        <select id="n-specialite"></select></div>
+    </div>
+    <div class="champ"><label for="n-histoire">D'où vient cette personne ? (facultatif)</label>
+      <input id="n-histoire" maxlength="90" placeholder="a marché trois semaines pour arriver ici"></div>
+    <p id="n-avertissement" class="note"></p>
+    <menu>
+      <button value="annuler" class="discret">Annuler</button>
+      <button value="ok" id="n-valider" class="primaire">Accueillir</button>
+    </menu>
+  </form>
+</dialog>
+
+<div id="infobulle" class="infobulle"></div>
+<div id="erreur" class="erreur" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>

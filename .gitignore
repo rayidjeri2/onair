@@ -3,3 +3,4 @@ __pycache__/
 sorties/
 .pytest_cache/
 node_modules/
+sauvegardes/

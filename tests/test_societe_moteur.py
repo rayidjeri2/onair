@@ -1,0 +1,164 @@
+import pytest
+
+from societe import moteur
+from societe.catalogue import MODELES, disponibles
+from societe.modele import Etat
+
+
+def societe():
+    return moteur.creer_societe("Ana", 30, graine=5)
+
+
+def test_depart_une_seule_personne_sur_un_million_de_km2():
+    e = societe()
+    assert e.population == 1
+    assert e.territoire.km2 == 1_000_000
+    assert e.jour == 0 and e.saison == "printemps"
+    assert e.stocks["nourriture"] > 0
+
+
+def test_deterministe_a_graine_fixee():
+    a, b = moteur.creer_societe("Ana", 30, 7), moteur.creer_societe("Ana", 30, 7)
+    moteur.avancer(a, 120)
+    moteur.avancer(b, 120)
+    assert a.stocks == b.stocks
+    assert a.moyenne("moral") == b.moyenne("moral")
+
+
+def test_graines_differentes_donnent_des_parties_differentes():
+    a = moteur.avancer(moteur.creer_societe("Ana", 30, 1), 200)
+    b = moteur.avancer(moteur.creer_societe("Ana", 30, 2), 200)
+    assert a.journal.entrees != b.journal.entrees
+
+
+def test_une_personne_seule_survit_en_cueillant():
+    e = societe()
+    moteur.avancer(e, 200)
+    assert e.population == 1
+    assert e.personnes[0].sante > 30
+
+
+def test_chantier_consomme_les_materiaux_et_le_travail():
+    e = societe()
+    moteur.lancer_chantier(e, "campement")
+    assert e.chantier is not None
+    moteur.affecter(e, 1, "construction")
+    moteur.avancer(e, 15)
+    assert e.batiment("campement") == 1
+    assert e.chantier is None
+
+
+def test_prerequis_refuse():
+    e = societe()
+    with pytest.raises(ValueError, match="prérequis"):
+        moteur.lancer_chantier(e, "cabane")
+
+
+def test_materiaux_manquants_refuses():
+    e = societe()
+    with pytest.raises(ValueError, match="matériaux"):
+        moteur.lancer_chantier(e, "toilettes_seches")
+
+
+def test_un_seul_chantier_a_la_fois():
+    e = societe()
+    moteur.lancer_chantier(e, "campement")
+    with pytest.raises(ValueError, match="déjà en cours"):
+        moteur.lancer_chantier(e, "source")
+
+
+def test_annulation_rend_une_partie_des_materiaux():
+    e = societe()
+    e.stocks["planches"] = 20
+    moteur.lancer_chantier(e, "toilettes_seches")
+    assert e.stocks["planches"] == 12
+    moteur.annuler_chantier(e)
+    assert e.stocks["planches"] == pytest.approx(12 + 8 * 0.6)
+
+
+def test_arrivee_de_personne():
+    e = societe()
+    p = moteur.ajouter_personne(e, "Tomas", 28, "construction", "venu du nord")
+    assert e.population == 2
+    assert p.competences["construction"] > 0.5
+    assert any("Tomas" in j["texte"] for j in e.journal.entrees)
+
+
+def test_specialite_inconnue_refusee():
+    e = societe()
+    with pytest.raises(ValueError):
+        moteur.ajouter_personne(e, "X", 30, "sorcellerie")
+
+
+def test_coordination_se_degrade_avec_la_population():
+    e = societe()
+    seul = moteur.coordination(e)
+    for i in range(12):
+        moteur.ajouter_personne(e, f"P{i}", 30, "agriculture")
+    assert moteur.coordination(e) < seul * 0.8
+
+
+def test_salle_commune_restaure_la_coordination():
+    a = societe()
+    for i in range(10):
+        moteur.ajouter_personne(a, f"P{i}", 30, "agriculture")
+    b = Etat.depuis_dict(a.vers_dict())
+    b.batiments["place"] = 1
+    assert moteur.coordination(b) > moteur.coordination(a)
+
+
+def test_verger_met_des_annees_a_produire():
+    e = societe()
+    e.territoire.ajouter("verger", 1.0, maturite=0.05)
+    depart = e.territoire.surface_productive("verger")
+    moteur.avancer(e, 365)
+    assert e.territoire.surface_productive("verger") > depart * 3
+
+
+def test_sans_personne_la_societe_s_eteint():
+    e = societe()
+    e.personnes.clear()
+    moteur.avancer(e, 1)
+    assert e.termine
+
+
+def test_une_arrivee_relance_une_societe_eteinte():
+    e = societe()
+    e.personnes.clear()
+    moteur.avancer(e, 1)
+    moteur.ajouter_personne(e, "Iris", 30, "agriculture")
+    assert e.termine is None
+    moteur.avancer(e, 3)
+    assert e.jour > 1
+
+
+def test_serialisation_complete():
+    e = societe()
+    moteur.lancer_chantier(e, "campement")
+    moteur.ajouter_personne(e, "Tomas", 28, "eau")
+    moteur.avancer(e, 40)
+    copie = Etat.depuis_dict(e.vers_dict())
+    assert copie.jour == e.jour
+    assert copie.population == e.population
+    assert copie.batiments == e.batiments
+    assert copie.chantier == e.chantier
+    moteur.avancer(copie, 10)
+    moteur.avancer(e, 10)
+    assert copie.stocks == e.stocks
+
+
+def test_catalogue_coherent():
+    for m in MODELES.values():
+        for pre in m.prerequis:
+            assert pre in MODELES, f"prérequis inconnu dans {m.cle}"
+        assert m.travail > 0
+        assert m.categorie
+        assert m.description
+
+
+def test_disponibles_signale_les_blocages():
+    e = societe()
+    par_cle = {c["cle"]: c for c in disponibles(e)}
+    assert not par_cle["campement"]["bloque"]
+    assert par_cle["cabane"]["bloque"]
+    assert par_cle["conseil"]["bloque"]

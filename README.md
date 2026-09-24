@@ -1,3 +1,13 @@
+# Dépôt de simulations
+
+Deux simulations indépendantes vivent ici :
+
+- **[`societe/`](societe/README.md)** — une société qui part d'une personne seule sur
+  un million de km², avec interface web (`python -m societe`).
+- **`onair/`** — un simulateur de grille radio à événements discrets (ci-dessous).
+
+---
+
 # onair — simulateur de grille radio
 
 Simulation à événements discrets d'une station de radio : une grille de
