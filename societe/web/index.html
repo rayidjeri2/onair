@@ -65,6 +65,26 @@
     <section class="carte">
       <h2>Habitants <span id="p-compte" class="pastille-compte">0</span></h2>
       <p class="sous">Chacun ne fait qu'une chose par jour. C'est là que tout se joue.</p>
+      <div class="intendance" id="i-bloc">
+        <div class="ligne-intendance">
+          <div>
+            <strong id="i-titre">Intendance</strong>
+            <span class="sous-inline" id="i-etat">vous décidez de tout</span>
+          </div>
+          <button id="i-bascule" class="primaire">Confier</button>
+        </div>
+        <p class="note" id="i-explication"></p>
+      </div>
+      <div class="redeploiement">
+        <label for="p-cible">Redéployer vers</label>
+        <div class="ligne-redeploiement">
+          <select id="p-cible"></select>
+          <button data-redeploie="1" title="la personne la plus efficace">1</button>
+          <button data-redeploie="3" title="les trois plus efficaces">3</button>
+          <button data-redeploie="tous" title="tous les adultes">tous</button>
+        </div>
+        <p class="note" id="p-redeploiement-note"></p>
+      </div>
       <div id="p-liste" class="personnes"></div>
       <div class="arrivees">
         <div class="titre-arrivee">Faire venir <span class="sous-inline">nom, âge, sexe et savoir-faire tirés au sort</span></div>

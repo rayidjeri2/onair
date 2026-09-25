@@ -9,7 +9,7 @@ from __future__ import annotations
 import random
 from typing import Any
 
-from . import demographie
+from . import demographie, intendance
 from .catalogue import MODELES, effet_total
 from .modele import (
     AGE_TRAVAIL,
@@ -82,7 +82,8 @@ def creer_societe(nom_fondateur: str = "Ana", age: int = 30, graine: int = 1,
 # --- actions du joueur ----------------------------------------------------
 
 def ajouter_personne(etat: Etat, nom: str, age: int, specialite: str,
-                     histoire: str = "", sexe: str = "f") -> Personne:
+                     histoire: str = "", sexe: str = "f",
+                     polyvalence: float | None = None) -> Personne:
     if specialite not in COMPETENCES:
         raise ValueError(f"spécialité inconnue : {specialite}")
     if not 1 <= age <= 100:
@@ -98,6 +99,7 @@ def ajouter_personne(etat: Etat, nom: str, age: int, specialite: str,
         sexe=sexe if sexe in ("f", "h") else "f",
         anniversaire=etat.jour_annee,
         histoire=histoire,
+        polyvalence=0.35 if polyvalence is None else max(0.0, min(1.0, polyvalence)),
     )
     p.competences[specialite] = 0.55
     if age < AGE_TRAVAIL:
@@ -144,6 +146,8 @@ def personne_au_hasard(etat: Etat, alea: random.Random | None = None) -> Personn
         specialite=specialite,
         histoire=alea.choice(demographie.ARRIVEES) if age >= AGE_TRAVAIL else "",
         sexe=sexe,
+        # certains ne savent faire qu'une chose, d'autres se débrouillent partout
+        polyvalence=round(min(1.0, max(0.0, alea.betavariate(2.2, 2.2))), 2),
     )
 
 
@@ -171,6 +175,18 @@ def affecter(etat: Etat, id_personne: int, tache: str) -> None:
     if p.enfant and tache != "repos":
         raise ValueError(f"{p.nom} n'a que {p.age} ans")
     p.tache = tache
+
+
+def regler_intendance(etat: Etat, actif: bool) -> None:
+    """Confie (ou reprend) la conduite quotidienne du lieu."""
+    etat.intendance = bool(actif)
+    etat.journal.noter(
+        etat.jour,
+        "L'intendance prend la main : affectations et chantiers sont décidés chaque matin."
+        if etat.intendance else "Vous reprenez la main sur les affectations et les chantiers.",
+        "info")
+    if etat.intendance:
+        intendance.decider(etat)
 
 
 def regler_politique(etat: Etat, cle: str, valeur: float) -> None:
@@ -229,6 +245,8 @@ def _un_jour(etat: Etat) -> None:
     avant = dict(etat.stocks)
     alea = random.Random(etat.graine * 1_000_003 + etat.jour)
     _mettre_a_jour_meteo(etat, alea)
+    if etat.intendance:
+        intendance.decider(etat)
 
     travail = _repartir_travail(etat)
     _produire(etat, travail, alea)
@@ -241,6 +259,10 @@ def _un_jour(etat: Etat) -> None:
     _alerter(etat)
     _evenement(etat, alea)
     _verifier_fin(etat)
+    # garde-fou : un stock ne descend jamais sous zéro, quoi qu'il arrive
+    for ressource, quantite in etat.stocks.items():
+        if quantite < 0:
+            etat.stocks[ressource] = 0.0
     etat.flux = {c: round(etat.stocks[c] - avant.get(c, 0.0), 2) for c in etat.stocks}
     _enregistrer_historique(etat)
 
@@ -704,5 +726,11 @@ def apercu(etat: Etat) -> dict[str, Any]:
         "couples": sum(1 for p in etat.personnes if p.partenaire is not None) // 2,
         "risques": {
             p.id: round(demographie.risque_annuel(etat, p) * 100, 2) for p in etat.personnes
+        },
+        # rendement de chacun sur chaque tâche : sert à choisir qui redéployer
+        "intendance": intendance.resume(etat) if etat.personnes else {},
+        "rendements": {
+            p.id: {t: round(p.efficacite(t), 3) for t in TACHE_COMPETENCE if t != "repos"}
+            for p in etat.personnes if not p.enfant
         },
     }

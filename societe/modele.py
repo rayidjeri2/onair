@@ -99,6 +99,7 @@ class Personne:
     grossesse: int | None = None  # jours de gestation écoulés
     autre_parent: int | None = None
     nee_ici: bool = False
+    polyvalence: float = 0.35   # aptitude à travailler hors de sa spécialité
     anniversaire: int = 0         # jour de l'année où l'âge augmente
 
     @property
@@ -159,12 +160,24 @@ class Personne:
             capacite *= 1.0 if self.grossesse < GESTATION * 0.6 else 0.55
         return max(0.0, capacite)
 
-    def efficacite(self, tache: str) -> float:
-        """Rendement sur une tâche : compétence + habitude (spécialisation)."""
+    def niveau_effectif(self, tache: str) -> float:
+        """Le niveau réellement mobilisable sur une tâche.
+
+        Une personne polyvalente rattrape une partie de l'écart entre la
+        compétence demandée et celle qu'elle maîtrise le mieux : c'est ce qui
+        permet de la redéployer quand une ressource vient à manquer.
+        """
         comp = TACHE_COMPETENCE.get(tache)
-        niveau = self.competences.get(comp, 0.1) if comp else 0.0
+        if comp is None:
+            return 0.0
+        niveau = self.competences.get(comp, 0.1)
+        meilleur = max(self.competences.values(), default=niveau)
+        return niveau + self.polyvalence * 0.5 * max(0.0, meilleur - niveau)
+
+    def efficacite(self, tache: str) -> float:
+        """Rendement sur une tâche : niveau mobilisable + habitude."""
         habitude = min(0.25, self.jours_par_tache.get(tache, 0) / 400)
-        return 0.35 + 1.3 * niveau + habitude
+        return 0.35 + 1.3 * self.niveau_effectif(tache) + habitude
 
 
 @dataclass
@@ -258,6 +271,7 @@ class Etat:
     historique: list[dict[str, float]] = field(default_factory=list)
     en_peril: bool = False
     politique: dict[str, float] = field(default_factory=lambda: {"natalite": 0.5})
+    intendance: bool = False   # la société se gère-t-elle toute seule ?
     demographie: dict[str, float] = field(default_factory=lambda: {
         "naissances": 0, "deces": 0, "ages_au_deces": 0.0, "couples_formes": 0,
     })

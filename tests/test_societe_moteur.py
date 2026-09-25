@@ -208,3 +208,56 @@ def test_apercu_porte_flux_et_capacites():
     a = moteur.apercu(e)
     assert a["flux"] == e.flux
     assert a["capacites"]["eau"] > 0
+
+
+def test_intendance_ouvre_des_chantiers_et_affecte():
+    e = moteur.creer_societe("Abeba", 26)
+    moteur.regler_intendance(e, True)
+    moteur.faire_venir(e, 3)
+    moteur.avancer(e, 365)
+    assert len(e.batiments) > 4
+    assert all(p.tache != "repos" for p in e.personnes if not p.enfant)
+    assert e.population >= 4
+
+
+def test_intendance_donne_la_priorite_a_l_eau():
+    from societe import intendance
+
+    e = moteur.creer_societe("Abeba", 26)
+    moteur.faire_venir(e, 6)  # le ruisseau ne suffit plus
+    assert intendance.cible_chantier(e) in ("source", "puits", "reservoir", "etang")
+
+
+def test_intendance_peut_etre_rendue():
+    e = moteur.creer_societe("Abeba", 26)
+    moteur.regler_intendance(e, True)
+    moteur.avancer(e, 30)
+    moteur.regler_intendance(e, False)
+    moteur.affecter(e, 1, "repos")
+    moteur.avancer(e, 3)
+    assert e.personne(1).tache == "repos"  # plus personne ne décide à votre place
+
+
+def test_intendance_survit_mieux_que_l_inaction():
+    livree = moteur.creer_societe("Abeba", 26, graine=12)
+    moteur.faire_venir(livree, 4)
+    moteur.avancer(livree, 500)
+
+    tenue = moteur.creer_societe("Abeba", 26, graine=12)
+    moteur.regler_intendance(tenue, True)
+    moteur.faire_venir(tenue, 4)
+    moteur.avancer(tenue, 500)
+
+    assert tenue.population > livree.population
+    assert len(tenue.batiments) > len(livree.batiments)
+
+
+def test_les_valeurs_ne_passent_jamais_sous_zero():
+    e = moteur.creer_societe("Abeba", 26)
+    moteur.faire_venir(e, 12)  # de quoi épuiser l'eau et les vivres
+    for _ in range(120):
+        moteur.avancer(e, 1)
+        for ressource, quantite in e.stocks.items():
+            assert quantite >= 0, f"{ressource} = {quantite}"
+        for p in e.personnes:
+            assert p.sante >= 0 and p.moral >= 0 and p.energie >= 0

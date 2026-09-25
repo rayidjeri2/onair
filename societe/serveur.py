@@ -89,6 +89,8 @@ def traiter(chemin: str, corps: dict[str, Any]) -> dict[str, Any]:
                     moteur.affecter(etat, int(id_personne), str(tache))
                 except ValueError:
                     continue
+        elif chemin == "/api/intendance":
+            moteur.regler_intendance(etat, bool(corps.get("actif", True)))
         elif chemin == "/api/politique":
             moteur.regler_politique(etat, str(corps["cle"]), float(corps["valeur"]))
         elif chemin == "/api/chantier":

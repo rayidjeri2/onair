@@ -28,6 +28,8 @@ standard de Python (≥ 3.11).
 | **Les arrivées** | boutons +1, +2, +5, +10 ou un nombre libre : nom, âge, sexe et savoir-faire tirés au sort ; ou la fiche détaillée si vous voulez choisir |
 | **Le désir d'enfants** | un curseur, de « aucun enfant voulu » à « autant que le lieu peut en porter » |
 | **Les affectations** | chacun ne fait qu'**une** chose par jour : cultiver, bûcheronner, bâtir, soigner, enseigner, coordonner… |
+| **Le redéploiement** | choisir une tâche et y envoyer les 1, 3 ou tous les plus efficaces, quand une ressource vient à manquer |
+| **L'intendance** | tout confier : elle choisit le chantier et affecte chacun chaque matin |
 | **Les chantiers** | un seul à la fois, à choisir dans un catalogue de 34 constructions |
 
 ## Ce que la simulation gère toute seule
@@ -46,6 +48,38 @@ standard de Python (≥ 3.11).
   réservoirs construits — au-delà, le surplus est perdu.
 - **La démographie** (voir ci-dessous) : la population grandit toute seule, une fois
   qu'il y a de quoi nourrir et loger des enfants.
+
+## L'intendance automatique
+
+Le bouton **Confier** remet la conduite quotidienne à `intendance.py`, qui décide
+chaque matin, dans cet ordre :
+
+1. **Boire** — des porteurs d'eau dès que le débit naturel ne couvre plus les besoins.
+2. **Manger** — assez de bras pour couvrir les rations, davantage si les réserves
+   fondent, et un objectif de stock plus élevé en été et en automne pour passer l'hiver.
+3. **Rassembler** ce qui manque au chantier visé (bois, planches, pierre).
+4. **Soigner, transmettre, coordonner** quand la taille du groupe le justifie.
+5. **Bâtir** avec tout le reste.
+
+Le chantier est choisi de la même façon : d'abord ce qui répare un besoin vital
+(un puits si l'eau manque, une maison s'il n'y a plus de place, une cave si le
+grenier déborde, un potager si les champs sont trop petits), puis l'ordre de
+développement. Le chantier visé est annoncé même quand les matériaux manquent —
+c'est lui qui oriente la collecte.
+
+À chaque affectation, l'intendance choisit **la personne la plus efficace encore
+disponible** pour la tâche, en tenant compte de sa polyvalence. Vous gardez la
+main : vos changements s'appliquent immédiatement et tiennent jusqu'au lendemain matin.
+
+## La polyvalence
+
+Chaque personne a, en plus de ses neuf compétences, une **polyvalence** tirée à
+l'arrivée. Elle dit dans quelle mesure on sait se rendre utile hors de sa
+spécialité : à 0, on est bon dans son domaine et médiocre partout ailleurs ; à 1,
+on comble la moitié de l'écart entre la compétence demandée et sa meilleure
+compétence. C'est ce qui rend le redéploiement possible quand l'eau ou les vivres
+viennent à manquer — le sélecteur de tâche de chaque personne affiche son rendement
+sur chacune, et les enfants héritent en partie de la polyvalence de leurs parents.
 
 ## La démographie
 

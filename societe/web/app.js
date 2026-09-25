@@ -94,15 +94,14 @@ function rendreBarre() {
             `<br><i>L'hiver dure 90 jours à rendement réduit.</i>`,
     },
     {
-      cle: "Eau", valeur: eauCritique ? `−${nb(a.eau_deficit)}` : nb(a.autonomie_eau_jours, 1),
-      unite: eauCritique ? "L/j" : "j",
-      part: eauCritique ? 1 - Math.min(1, a.eau_deficit / Math.max(1, a.eau_besoin_jour))
-        : Math.min(1, a.autonomie_eau_jours / 10),
+      cle: "Eau", valeur: nb(Math.max(0, a.autonomie_eau_jours), 1),
+      unite: eauCritique ? "j ⚠" : "j",
+      part: Math.min(1, Math.max(0, a.autonomie_eau_jours) / 10),
       etat: eauCritique ? (a.autonomie_eau_jours < 2 ? "alerte" : "prudence")
         : etat(a.autonomie_eau_jours, 4, 1),
       fleche: tendance("eau", e.stocks.eau),
       aide: `Il arrive ${nb(a.eau_apport_jour)} L par jour, il en faut ${nb(a.eau_besoin_jour)}.` +
-            (eauCritique ? `<br><b>Il manque ${nb(a.eau_deficit)} L chaque jour</b> : porter l'eau, ` +
+            (eauCritique ? `<br><b>Il manque ${nb(Math.abs(a.eau_deficit))} L chaque jour</b> : porter l'eau, ` +
               `capter la source ou creuser un puits.` : "") +
             `<br>${nb(e.stocks.eau)} L stockés sur ${nb(a.eau_max)}.`,
     },
@@ -172,8 +171,14 @@ function rendrePersonnes() {
       <span class="piste"><i style="width:${Math.max(2, v)}%;background:${couleurJauge(v)}"></i></span>
       <span>${nb(v)}</span></div>`;
     const spec = Object.entries(p.competences).sort((a, b) => b[1] - a[1])[0];
-    const options = Object.entries(taches).map(([k, v]) =>
-      `<option value="${k}" ${p.tache === k ? "selected" : ""}>${v}</option>`).join("");
+    const rend = (S.apercu.rendements || {})[p.id];
+    const meilleur = rend ? Math.max(...Object.values(rend)) : 0;
+    const options = Object.entries(taches).map(([k, v]) => {
+      const part = rend && rend[k] ? Math.round((rend[k] / meilleur) * 100) : null;
+      // le rendement d'abord : il reste lisible même si le libellé est tronqué
+      return `<option value="${k}" ${p.tache === k ? "selected" : ""}>` +
+        `${part !== null ? `${String(part).padStart(3, " ")} % · ` : ""}${v}</option>`;
+    }).join("");
     const enfant = p.age < 14;
     const nomDe = (id) => (e.personnes.find((q) => q.id === id) || {}).nom;
     const etiquettes = [];
@@ -185,6 +190,10 @@ function rendrePersonnes() {
     if (vivants.length) etiquettes.push(
       `<span class="etiq">${vivants.length} enfant${vivants.length > 1 ? "s" : ""}</span>`);
     if (p.nee_ici) etiquettes.push(`<span class="etiq">né${p.sexe === "f" ? "e" : ""} ici</span>`);
+    if (!enfant && p.polyvalence >= 0.6) etiquettes.push(
+      `<span class="etiq polyvalent" title="se débrouille dans presque tous les travaux">polyvalent${p.sexe === "f" ? "e" : ""}</span>`);
+    else if (!enfant && p.polyvalence <= 0.22) etiquettes.push(
+      `<span class="etiq specialise" title="peu efficace hors de sa spécialité">spécialisé${p.sexe === "f" ? "e" : ""}</span>`);
     const risque = (S.apercu.risques || {})[p.id];
     return `<div class="personne">
       <div class="tete"><span class="nom">${p.nom}</span>
@@ -193,7 +202,7 @@ function rendrePersonnes() {
       <div class="jauges">${jauge("énergie", p.energie)}${jauge("santé", p.sante)}${jauge("moral", p.moral)}</div>
       ${etiquettes.length ? `<div class="famille">${etiquettes.join("")}</div>` : ""}
       <select data-personne="${p.id}" ${enfant ? "disabled" : ""}>${options}</select>
-      ${p.tache === "construction" && !e.chantier
+      ${p.tache === "construction" && !e.chantier && !e.intendance
         ? `<div class="avert">aucun chantier ouvert : cette journée est perdue</div>` : ""}
       ${p.histoire ? `<div class="histoire">« ${p.histoire} »</div>` : ""}
     </div>`;
@@ -203,6 +212,8 @@ function rendrePersonnes() {
     s.onchange = () => api("/api/affectation", { id: +s.dataset.personne, tache: s.value });
   });
 
+  rendreIntendance();
+  rendreRedeploiement();
   const cap = S.apercu.capacite_gouvernance;
   const places = S.apercu.abri - e.personnes.length;
   const notes = [];
@@ -213,6 +224,73 @@ function rendrePersonnes() {
     : `Plus une place à l'abri : chaque arrivée dégrade la santé et le moral.`);
   notes.push(`${nb(S.apercu.autonomie_nourriture_jours, 1)} jours de vivres d'avance.`);
   $("#p-note").textContent = notes.join(" ");
+}
+
+function rendreIntendance() {
+  const actif = S.etat.intendance;
+  const bloc = $("#i-bloc");
+  bloc.classList.toggle("active", actif);
+  $("#i-etat").textContent = actif
+    ? "elle décide chaque matin"
+    : "vous décidez de tout";
+  $("#i-bascule").textContent = actif ? "Reprendre" : "Confier";
+  $("#i-bascule").classList.toggle("primaire", !actif);
+  $("#i-bascule").classList.toggle("discret", actif);
+
+  const info = S.apercu.intendance || {};
+  if (actif) {
+    const manque = Object.entries(info.manquants || {})
+      .map(([r, q]) => `${nb(q, 1)} ${r}`).join(", ");
+    const suite = manque ? `rassemble ${manque}`
+      : S.etat.chantier ? "chantier en cours"
+      : "ouvre le chantier demain matin";
+    $("#i-explication").textContent = info.cible_nom
+      ? `Vise « ${info.cible_nom} » — ${suite}. ` +
+        "Vos changements d'affectation tiennent jusqu'au lendemain matin."
+      : "Rien à entreprendre pour l'instant : tout le monde produit.";
+  } else {
+    $("#i-explication").textContent =
+      "Elle choisit le chantier et affecte chacun selon ses aptitudes, " +
+      "en donnant la priorité à l'eau, aux vivres, puis à l'abri.";
+  }
+  $("#i-bascule").onclick = () => api("/api/intendance", { actif: !actif });
+}
+
+function rendreRedeploiement() {
+  const taches = S.referentiel.taches;
+  const select = $("#p-cible");
+  const garde = select.value;
+  select.innerHTML = Object.entries(taches)
+    .filter(([k]) => k !== "repos")
+    .map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
+  select.value = garde && taches[garde] ? garde : "nourriture";
+
+  const rend = S.apercu.rendements || {};
+  const adultes = S.etat.personnes.filter((p) => rend[p.id]);
+  const classes = (tache) => adultes.slice()
+    .sort((x, y) => (rend[y.id][tache] || 0) - (rend[x.id][tache] || 0));
+
+  const decrire = () => {
+    const t = select.value;
+    const ordre = classes(t);
+    $("#p-redeploiement-note").textContent = ordre.length
+      ? `Les plus efficaces : ${ordre.slice(0, 3).map((p) => p.nom).join(", ")}.`
+      : "Personne en âge de travailler.";
+  };
+  select.onchange = decrire;
+  decrire();
+
+  document.querySelectorAll("[data-redeploie]").forEach((b) => {
+    b.onclick = () => {
+      const t = select.value;
+      const combien = b.dataset.redeploie === "tous" ? adultes.length : +b.dataset.redeploie;
+      const choisis = classes(t).slice(0, combien);
+      if (!choisis.length) return;
+      const affectations = {};
+      for (const p of choisis) affectations[p.id] = t;
+      api("/api/affectations", { affectations });
+    };
+  });
 }
 
 const COULEUR_PARCELLE = {

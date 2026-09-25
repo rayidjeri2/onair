@@ -211,6 +211,9 @@ def _accoucher(etat: Etat, mere: Personne, alea: random.Random) -> None:
         parents=[i for i in (mere.id, pere_id) if i is not None],
         nee_ici=True,
         anniversaire=etat.jour_annee,
+        polyvalence=round(min(1.0, max(0.0, alea.gauss(
+            (mere.polyvalence + (etat.personne(pere_id).polyvalence
+                                 if etat.personne(pere_id) else mere.polyvalence)) / 2, 0.18))), 2),
         histoire=f"né ici le {etat.jour_annee + 1}e jour de l'an {etat.annee}"
         if sexe == "h" else f"née ici le {etat.jour_annee + 1}e jour de l'an {etat.annee}",
     )
