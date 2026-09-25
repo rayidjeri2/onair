@@ -204,6 +204,17 @@ input, select {
   border-radius: 999px; padding: 2px 9px; color: var(--texte-2);
 }
 
+/* --- carte du lieu --- */
+#c-plan { width: 100%; height: auto; display: block; border-radius: 10px;
+  background: var(--surface-2); }
+.legende-carte { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px;
+  font-size: 11.5px; color: var(--texte-2); }
+.legende-carte span { display: inline-flex; align-items: center; gap: 5px; }
+.legende-carte i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.bascule { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px;
+  color: var(--texte-2); cursor: pointer; }
+.bascule input { width: auto; }
+
 /* --- chantier --- */
 .barre-progres { height: 8px; border-radius: 5px; background: var(--surface-2); overflow: hidden; margin: 8px 0 6px; }
 .barre-progres i { display: block; height: 100%; background: var(--s1); border-radius: 5px; transition: width .3s; }

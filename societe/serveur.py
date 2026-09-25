@@ -9,7 +9,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-from . import actions, marche, metiers, moteur
+from . import actions, carte, marche, metiers, moteur
 from .catalogue import disponibles
 from .modele import COMPETENCES, RESSOURCES, TACHES, TYPES_PARCELLE, Etat
 
@@ -37,6 +37,7 @@ def instantane(etat: Etat) -> dict[str, Any]:
     return {
         "etat": etat.vers_dict(),
         "apercu": moteur.apercu(etat),
+        "carte": carte.dessiner(etat),
         "chantiers": disponibles(etat),
         "actions": actions.catalogue(),
         "reglages": actions.valeurs_courantes(etat),

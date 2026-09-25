@@ -79,6 +79,27 @@ deux fois la même épidémie, avec et sans) ; *quelle est la taille critique ?*
 (scinder le groupe à 40 % et voir s'il se relève) ; *le stockage ou la
 production ?* (ramener les saisons à 30 jours et regarder qui meurt d'abord).
 
+## La carte du lieu
+
+Le panneau « Le lieu » montre un **plan 2D** de 46 × 26 cases, recalculé à
+chaque battement d'horloge :
+
+- le **terrain** (forêt, friche, potagers, vergers, pâtures, eau) réparti selon
+  les surfaces réelles, avec une disposition stable — une parcelle qui
+  s'agrandit garde les cases qu'elle occupait déjà ;
+- le **hameau** au centre, une case par type de construction avec le nombre
+  d'exemplaires — à cent maisons en terre, une case par bâtiment ne serait
+  qu'un tapis de confettis ;
+- les **chantiers en cours** en pointillé, avec leur barre d'avancement ;
+- les **gens**, un point coloré par tâche, placés là où ils travaillent : aux
+  champs, en forêt, sur le chantier ou au hameau.
+
+Tout est survolable. La carte n'est pas stockée dans l'état : elle est
+reconstruite à partir des surfaces, des constructions et des tâches du jour,
+de façon déterministe — une même société donne toujours le même plan.
+
+Le bouton **Répartition** revient à l'ancienne vue par parts de surface.
+
 ## Les découvertes et l'outillage
 
 Un savoir ne s'achète pas : il se gagne **en faisant**. Cultiver longtemps finit
@@ -260,6 +281,7 @@ societe/
   savoirs.py     les 17 découvertes, leur progression et leur oubli
   metiers.py     les 14 métiers à plein temps
   marche.py      commerce extérieur, prix, trésor et fortunes
+  carte.py       le plan 2D : terrain, hameau, chantiers, gens
   intendance.py  l'intendance automatique : chantiers et affectations
   catalogue.py   les 34 chantiers : coûts, prérequis, effets
   moteur.py      une journée de simulation ; constantes de calibrage en tête de fichier

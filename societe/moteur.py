@@ -9,7 +9,7 @@ from __future__ import annotations
 import random
 from typing import Any
 
-from . import demographie, intendance, marche, metiers, savoirs
+from . import carte, demographie, intendance, marche, metiers, savoirs
 from .catalogue import MODELES, effet_total
 from .modele import (
     AGE_TRAVAIL,

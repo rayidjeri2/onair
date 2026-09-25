@@ -7,6 +7,8 @@ let seulementRealisables = true;
 let auto = null;          // battement de l'horloge
 let vitesse = 1;          // jours par battement (0 = suspendu)
 let filtreAction = "population";
+let vueLieu = "plan";
+let montrerGens = true;
 
 const $ = (s) => document.querySelector(s);
 const el = (n, a = {}, t) => {
@@ -321,6 +323,113 @@ function rendreRedeploiement() {
   });
 }
 
+const COULEUR_TERRAIN = {
+  friche: "#8a8270", foret: "#1f7a4d", potager: "#c98500", verger: "#d95926",
+  pature: "#7a68c9", eau: "#2a78d6", bati: "#6b675c",
+};
+const NOM_TERRAIN = {
+  friche: "friche", foret: "forêt", potager: "potager", verger: "verger",
+  pature: "pâture", eau: "eau", bati: "hameau",
+};
+const COULEUR_CATEGORIE = {
+  abri: "#eb6834", eau: "#2a78d6", nourriture: "#1baf7a", energie: "#eda100",
+  atelier: "#4a3aa7", commun: "#e87ba4", terre: "#8d8c83",
+};
+const COULEUR_TACHE = {
+  nourriture: "#1baf7a", eau: "#2a78d6", bois: "#8a5a2b", pierre: "#8d8c83",
+  construction: "#eb6834", artisanat: "#4a3aa7", cuisine: "#eda100",
+  soin: "#e87ba4", enseignement: "#e34948", organisation: "#00838f",
+  recherche: "#9085e9", repos: "#6b675c",
+};
+
+function rendrePlan() {
+  const c = S.carte;
+  const svg = $("#c-plan");
+  if (!c) return;
+  svg.textContent = "";
+  const cote = 10, marge = 2;
+  const L = c.largeur * cote + marge * 2, H = c.hauteur * cote + marge * 2;
+  svg.setAttribute("viewBox", `0 0 ${L} ${H}`);
+
+  // le terrain, case par case
+  const lettres = c.lettres;
+  for (let y = 0; y < c.hauteur; y++) {
+    const ligne = c.tuiles[y];
+    for (let x = 0; x < c.largeur; x++) {
+      const type = lettres[ligne[x]];
+      svg.append(el("rect", {
+        x: marge + x * cote, y: marge + y * cote, width: cote, height: cote,
+        fill: COULEUR_TERRAIN[type] || "#888",
+        opacity: type === "friche" ? 0.26 : type === "bati" ? 0.35 : 0.62,
+      }));
+    }
+  }
+
+  // les constructions
+  for (const b of c.batiments) {
+    const r = el("rect", {
+      x: marge + b.x * cote + 1.2, y: marge + b.y * cote + 1.2,
+      width: cote - 2.4, height: cote - 2.4, rx: 2.2,
+      fill: COULEUR_CATEGORIE[b.categorie] || "var(--texte-2)",
+      stroke: "var(--surface-1)", "stroke-width": 0.8,
+    });
+    r.addEventListener("pointermove", (ev) => infobulle(
+      `<b>${b.nom}</b>${b.nombre > 1 ? ` ×${b.nombre}` : ""}<br>${b.categorie}`, ev));
+    r.addEventListener("pointerleave", cacherInfobulle);
+    svg.append(r);
+    if (b.nombre > 1) {
+      svg.append(el("text", {
+        x: marge + b.x * cote + cote / 2, y: marge + b.y * cote + cote / 2 + 2.6,
+        "text-anchor": "middle", "font-size": 5.4, "font-weight": 700,
+        fill: "var(--surface-1)", "pointer-events": "none",
+      }, b.nombre > 99 ? "99+" : String(b.nombre)));
+    }
+  }
+
+  // les chantiers en cours, en pointillé, avec leur avancement
+  for (const ch of c.chantiers) {
+    const g = el("rect", {
+      x: marge + ch.x * cote + 0.8, y: marge + ch.y * cote + 0.8,
+      width: cote - 1.6, height: cote - 1.6, rx: 2.2,
+      fill: "none", stroke: "var(--s4)", "stroke-width": 1.4, "stroke-dasharray": "2 1.6",
+    });
+    g.addEventListener("pointermove", (ev) => infobulle(
+      `<b>Chantier : ${ch.nom}</b><br>${Math.round(ch.avancement * 100)} % fait`, ev));
+    g.addEventListener("pointerleave", cacherInfobulle);
+    svg.append(g);
+    svg.append(el("rect", {
+      x: marge + ch.x * cote + 1.4, y: marge + (ch.y + 1) * cote - 2.6,
+      width: (cote - 2.8) * Math.min(1, ch.avancement), height: 1.4,
+      fill: "var(--s4)",
+    }));
+  }
+
+  // les gens
+  if (montrerGens) {
+    for (const p of c.gens) {
+      const point = el("circle", {
+        cx: marge + p.x * cote, cy: marge + p.y * cote, r: p.enfant ? 1.6 : 2.4,
+        fill: COULEUR_TACHE[p.tache] || "var(--texte)",
+        stroke: "var(--surface-1)", "stroke-width": 0.7,
+      });
+      point.addEventListener("pointermove", (ev) => infobulle(
+        `<b>${p.nom}</b><br>${S.referentiel.taches[p.tache] || p.tache}` +
+        (p.metier ? `<br>métier : ${p.metier}` : "") +
+        (p.enfant ? "<br>enfant" : ""), ev));
+      point.addEventListener("pointerleave", cacherInfobulle);
+      svg.append(point);
+    }
+  }
+
+  // légende
+  const usages = Object.keys(c.surfaces).filter((t) => c.surfaces[t] > 0);
+  $("#c-legende").innerHTML = usages.map((t) =>
+    `<span><i style="background:${COULEUR_TERRAIN[t]}"></i>${NOM_TERRAIN[t]} ${nb(c.surfaces[t], 1)} ha</span>`).join("") +
+    `<span><i style="background:${COULEUR_TERRAIN.bati}"></i>hameau : ${
+       c.batiments.length} type(s), ${c.batiments.reduce((t, b) => t + b.nombre, 0)} bâtiments</span>` +
+    (montrerGens ? `<span><i style="background:var(--texte-3);border-radius:50%"></i>${c.gens.length} personnes</span>` : "");
+}
+
 const COULEUR_PARCELLE = {
   friche: "var(--texte-3)", foret: "var(--s3)", potager: "var(--s4)",
   verger: "var(--s2)", pature: "var(--s5)", bati: "var(--texte-2)", eau: "var(--s1)",
@@ -328,6 +437,17 @@ const COULEUR_PARCELLE = {
 
 function rendreLieu() {
   const e = S.etat, t = e.territoire;
+  // bascule entre le plan et la vue par parts
+  $("#c-vues").querySelectorAll("[data-vue]").forEach((b) => {
+    b.setAttribute("aria-pressed", b.dataset.vue === vueLieu);
+    b.onclick = () => { vueLieu = b.dataset.vue; rendreLieu(); };
+  });
+  const gens = $("#c-gens");
+  gens.checked = montrerGens;
+  gens.onchange = () => { montrerGens = gens.checked; rendrePlan(); };
+  $("#c-plan").hidden = vueLieu !== "plan";
+  $("#c-carte").hidden = vueLieu !== "parts";
+  if (vueLieu === "plan") rendrePlan();
   const amen = e.derive.hectares_amenages;
   $("#c-territoire").textContent =
     `${nb(t.km2)} km² de territoire. ${nb(amen, 1)} hectares aménagés — ` +

@@ -123,7 +123,14 @@
       <div class="carte">
         <h2>Le lieu</h2>
         <p class="sous" id="c-territoire">—</p>
-        <svg id="c-carte" viewBox="0 0 600 260" role="img" aria-label="Plan du lieu"></svg>
+        <div class="filtres" id="c-vues">
+          <button data-vue="plan" aria-pressed="true">Plan</button>
+          <button data-vue="parts" aria-pressed="false">Répartition</button>
+          <label class="bascule"><input type="checkbox" id="c-gens" checked> montrer les gens</label>
+        </div>
+        <svg id="c-plan" viewBox="0 0 460 260" role="img" aria-label="Carte du lieu"></svg>
+        <svg id="c-carte" viewBox="0 0 600 260" role="img" aria-label="Répartition des terres" hidden></svg>
+        <div id="c-legende" class="legende-carte"></div>
         <div id="c-batiments" class="chips"></div>
       </div>
 
