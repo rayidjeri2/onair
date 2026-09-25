@@ -193,3 +193,105 @@ def test_interventions_survivent_a_la_sauvegarde():
     assert copie.interventions == e.interventions
     assert copie.climat == e.climat
     assert copie.jours_par_an == e.jours_par_an
+
+
+# --- audit de bout en bout : chaque intervention agit et laisse une trace ----
+
+def labo_complet():
+    """Une société viable, équipée, pour éprouver les interventions."""
+    e = moteur.creer_societe("Abeba", 30, graine=7)
+    moteur.faire_venir(e, 10)
+    e.batiments.update({"source": 1, "puits": 2, "maison_terre": 6, "atelier": 1,
+                        "forge": 1, "cave": 1, "ecole": 1, "place": 1, "scierie": 1})
+    e.decouvertes += ["ecriture", "poterie", "metallurgie"]
+    e.stocks.update({"planches": 300, "bois": 100, "pierre": 100, "recup": 300,
+                     "nourriture": 400})
+    e.tresor = 1500.0
+    moteur.avancer(e, 5)
+    moteur.lancer_chantier(e, "defrichage")   # de quoi embaucher des bras
+    return e
+
+
+def photo(e):
+    return {
+        "pop": e.population, "stocks": dict(e.stocks), "bat": dict(e.batiments),
+        "climat": dict(e.climat), "cohesion": e.cohesion,
+        "sante": round(e.moyenne("sante"), 2), "moral": round(e.moyenne("moral"), 2),
+        "decouvertes": list(e.decouvertes), "epidemie": dict(e.epidemie),
+        "natalite": e.politique.get("natalite"), "foret": e.territoire.surface("foret"),
+        "potager": e.territoire.surface("potager"),
+        "chantiers": [c.cle for c in e.chantiers],
+        "avancement": [round(c.travail_fait, 2) for c in e.chantiers],
+        "tresor": round(e.tresor, 2),
+        "politique": dict(e.politique),
+        "avoirs": round(sum(p.avoir for p in e.personnes), 2),
+        "competences": round(sum(sum(p.competences.values()) for p in e.personnes), 2),
+        "taches": sorted(p.tache for p in e.personnes),
+    }
+
+
+# paramètres choisis pour différer de l'état de départ, sinon « ne rien changer »
+# serait le comportement correct et le test ne prouverait rien
+PARAMETRES = {
+    "natalite": {"valeur": 90},
+    "impot": {"part": 80},
+    "reserve": {"jours": 200},
+    "route": {"ouverte": False},
+    "tresor": {"pieces": 2500},
+    "embaucher": {"pieces": 600},
+    "redistribuer": {"part": 100},
+    "saisons": {"jours": 40},
+    "hiver": {"valeur": 180},
+    "pluie": {"valeur": 0},
+    "temperature": {"valeur": -12},
+    "fertilite": {"valeur": 250},
+    "offrir_savoir": {"savoir": "engrenage"},
+    "effacer_savoir": {"savoir": "metallurgie"},
+    "ouvrir_chantier": {"chantier": "reforestation"},
+    "construire": {"chantier": "poulailler", "nombre": 3},
+    "demolir": {"chantier": "atelier"},
+}
+
+
+@pytest.mark.parametrize("cle", sorted(actions.ACTIONS))
+def test_chaque_intervention_agit_et_laisse_une_trace(cle):
+    e = labo_complet()
+    avant = photo(e)
+    resultat = actions.appliquer(e, cle, PARAMETRES.get(cle, {}))
+    apres = photo(e)
+
+    assert resultat, f"{cle} ne dit pas ce qu'elle a fait"
+    changements = [k for k in avant if avant[k] != apres[k]]
+    assert changements, f"{cle} n'a rien changé dans l'état"
+
+    trace = e.interventions[-1]
+    assert trace["cle"] == cle and trace["jour"] == e.jour and trace["resultat"]
+    assert any(j["genre"] == "intervention" and actions.ACTIONS[cle].nom in j["texte"]
+               for j in e.journal.entrees)
+
+
+def test_les_parametres_hors_bornes_sont_ramenes_dans_les_clous():
+    e = labo_complet()
+    actions.appliquer(e, "temperature", {"valeur": -99})
+    assert e.climat["temperature"] == -15.0        # borne basse du paramètre
+    actions.appliquer(e, "fertilite", {"valeur": 9999})
+    assert e.climat["fertilite"] == 3.0            # borne haute
+
+
+def test_un_reglage_durable_agit_sur_la_simulation():
+    froid = labo_complet()
+    actions.appliquer(froid, "temperature", {"valeur": -12})
+    temoin = labo_complet()
+    releves = []
+    for _ in range(60):
+        moteur.avancer(froid, 1)
+        moteur.avancer(temoin, 1)
+        releves.append(temoin.meteo.temperature - froid.meteo.temperature)
+    assert all(abs(d - 12) < 1e-6 for d in releves)
+
+
+def test_une_intervention_impossible_est_refusee_clairement():
+    e = labo_complet()
+    e.batiments["dispensaire"] = 1
+    with pytest.raises(ValueError, match="déjà construit"):
+        actions.appliquer(e, "ouvrir_chantier", {"chantier": "dispensaire"})

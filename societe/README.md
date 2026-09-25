@@ -67,9 +67,9 @@ avec sa date, ses paramètres et son résultat.
 | **Population** | faire venir 1 à 50 personnes, accueillir une famille, provoquer des départs, faire venir une sommité dans un savoir-faire, régler le désir d'enfants |
 | **Épreuves** | épidémie (gravité, contagion, durée), destruction des réserves, sécheresse, tempête qui emporte des bâtiments, incendie de forêt, accident |
 | **Climat et temps** | durée des saisons, dureté de l'hiver, régime des pluies, décalage des températures, fertilité des sols |
-| **Ressources** | livrer ou vider un stock, aménager du terrain d'un coup |
-| **Bâtir** | construire instantanément, démolir, imposer un chantier |
-| **Vie collective** | organiser une fête, semer la discorde, provoquer une scission, transmettre un savoir, décréter un repos |
+| **Ressources** | livrer ou vider un stock, aménager du terrain, appeler une caravane, ouvrir ou fermer la route, fixer la réserve stratégique, verser ou retirer de l'argent |
+| **Bâtir** | construire instantanément, démolir, imposer un chantier, embaucher des bras |
+| **Vie collective** | organiser une fête, semer la discorde, provoquer une scission, transmettre un savoir, décréter un repos, fixer l'impôt, tout redistribuer, offrir une découverte |
 
 Les réglages marqués **durables** (climat, natalité) restent en vigueur et
 affichent leur valeur courante ; les autres sont des chocs ponctuels.
@@ -128,6 +128,31 @@ trois adultes** (six au maximum). Les bras affectés à « travailler sur le
 chantier » se répartissent à parts égales entre eux. Tant qu'un besoin vital
 n'est pas couvert — eau, toit, champs — l'intendance n'en ouvre qu'un seul :
 disperser l'effort pendant une crise, c'est ne rien finir.
+
+## Le commerce extérieur et la monnaie
+
+Jusqu'ici, le surplus au-delà du grenier était purement perdu. Avec un **chemin
+d'accès** (ou la découverte de la roue), des caravanes passent : elles achètent
+ce que le lieu a en trop et vendent ce qui bloque les chantiers.
+
+- **Les prix** dépendent d'une base par ressource (28 pièces pour un lot
+  d'outils, 1,2 pour une portion), de l'éloignement — que le chemin réduit — et
+  de l'humeur du marché. On achète 35 % plus cher qu'on ne vend.
+- **Le surplus** est ce qui dépasse la réserve stratégique (réglable, 90 jours
+  par défaut) ou ce qui allait déborder du grenier de toute façon.
+- **La recette se partage** : une part va au trésor commun (l'impôt, réglable),
+  le reste aux gens, à proportion de ce que chacun a produit ce jour-là.
+
+**L'argent sert à quelque chose** : acheter ce qui manque, embaucher des bras
+extérieurs pour avancer un chantier, et attirer des gens — la prospérité se
+sait, et les nouveaux venus coûtent 200 pièces à installer. Chacun dépense aussi
+12 % de sa fortune à chaque caravane, ce qui remonte son moral : c'est là que
+l'inégalité cesse d'être un nombre et se lit dans l'humeur du lieu.
+
+L'**indice de Gini** des fortunes est affiché en permanence. Avec l'impôt à
+25 %, il monte naturellement vers 0,5 en une douzaine d'années. Le mettre à
+100 % le maintient à zéro ; l'intervention « tout redistribuer » le ramène à
+zéro d'un coup.
 
 ## L'intendance automatique
 
@@ -231,9 +256,10 @@ plafonne à cinq personnes.
 ```
 societe/
   modele.py      personnes, parcelles, stocks, chantiers — tout est sérialisable
-  actions.py     les 30 interventions du joueur, avec leurs paramètres
+  actions.py     les 37 interventions du joueur, avec leurs paramètres
   savoirs.py     les 17 découvertes, leur progression et leur oubli
   metiers.py     les 14 métiers à plein temps
+  marche.py      commerce extérieur, prix, trésor et fortunes
   intendance.py  l'intendance automatique : chantiers et affectations
   catalogue.py   les 34 chantiers : coûts, prérequis, effets
   moteur.py      une journée de simulation ; constantes de calibrage en tête de fichier

@@ -9,7 +9,7 @@ from __future__ import annotations
 import random
 from typing import Any
 
-from . import demographie, intendance, metiers, savoirs
+from . import demographie, intendance, marche, metiers, savoirs
 from .catalogue import MODELES, effet_total
 from .modele import (
     AGE_TRAVAIL,
@@ -193,11 +193,20 @@ def regler_intendance(etat: Etat, actif: bool) -> None:
         intendance.decider(etat)
 
 
+BORNES_POLITIQUE = {
+    "natalite": (0.0, 1.0),
+    "commerce": (0.0, 1.0),
+    "impot": (0.0, 1.0),
+    "reserve_jours": (0.0, 400.0),
+}
+
+
 def regler_politique(etat: Etat, cle: str, valeur: float) -> None:
-    """Les orientations que le collectif se donne — pour l'instant : le désir d'enfants."""
+    """Les orientations que le collectif se donne."""
     if cle not in etat.politique:
         raise ValueError(f"politique inconnue : {cle}")
-    etat.politique[cle] = max(0.0, min(1.0, float(valeur)))
+    bas, haut = BORNES_POLITIQUE.get(cle, (0.0, 1.0))
+    etat.politique[cle] = max(bas, min(haut, float(valeur)))
 
 
 def lancer_chantier(etat: Etat, cle: str) -> Chantier:
@@ -264,6 +273,7 @@ def _un_jour(etat: Etat) -> None:
     _produire(etat, travail, alea)
     _avancer_chantier(etat, travail)
     savoirs.progresser(etat, travail, alea)
+    marche.passer_le_jour(etat, alea)
     _consommer(etat)
     _mettre_a_jour_personnes(etat, travail, alea)
     demographie.passer_le_jour(etat, alea)
@@ -698,6 +708,8 @@ def _enregistrer_historique(etat: Etat) -> None:
         "naissances": etat.demographie["naissances"],
         "deces": etat.demographie["deces"],
         "age_moyen": round(etat.moyenne("age"), 1),
+        "tresor": round(etat.tresor, 1),
+        "inegalite": marche.inegalite(etat),
     })
     del etat.historique[:-4000]
 
@@ -770,6 +782,7 @@ def apercu(etat: Etat) -> dict[str, Any]:
         "chantiers_max": etat.chantiers_max,
         "savoirs": savoirs.resume(etat),
         "metiers": metiers.resume(etat),
+        "marche": marche.resume(etat),
         "productivite": {
             nom: round(multiplicateur(etat, f"rendement_{nom}"), 2)
             for nom in ("agricole", "bois", "pierre", "construction", "artisanat", "eau")

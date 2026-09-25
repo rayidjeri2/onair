@@ -9,7 +9,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-from . import actions, metiers, moteur
+from . import actions, marche, metiers, moteur
 from .catalogue import disponibles
 from .modele import COMPETENCES, RESSOURCES, TACHES, TYPES_PARCELLE, Etat
 

@@ -51,6 +51,7 @@ function rendre() {
   rendreActions();
   rendreCatalogue();
   rendreRessources();
+  rendreCommerce();
   rendreDemographie();
   rendreGraphiques();
   rendreJournal();
@@ -626,6 +627,8 @@ function rendreGraphiques() {
       ["santé", "var(--s3)", ech.map((p) => p.sante)]] },
     { titre: "Réserves de vivres", series: [
       ["portions", "var(--s3)", ech.map((p) => p.nourriture)]] },
+    { titre: "Trésor commun", series: [
+      ["pièces", "var(--s4)", ech.map((p) => p.tresor ?? 0)]] },
     { titre: "Naissances et décès cumulés", series: [
       ["naissances", "var(--s5)", ech.map((p) => p.naissances ?? 0)],
       ["décès", "var(--texte-3)", ech.map((p) => p.deces ?? 0)]] },
@@ -647,6 +650,46 @@ function rendreGraphiques() {
     }
     cible.append(svg);
   }
+}
+
+function rendreCommerce() {
+  const m = S.apercu.marche;
+  if (!m) return;
+  $("#m-etat").textContent = !m.route_ouverte
+    ? "Personne ne vient jusqu'ici : il faut un chemin d'accès, ou la roue."
+    : !m.commerce_actif
+      ? "La route est fermée : le lieu vit en autarcie."
+      : `Prochaine caravane dans ${m.prochaine_caravane} jour(s). ` +
+        `Impôt ${Math.round(m.impot * 100)} %, réserve gardée ${Math.round(m.reserve_jours)} jours.`;
+
+  const tuiles = [
+    ["Trésor commun", `${nb(m.tresor)} ₽`],
+    ["Fortunes privées", `${nb(m.avoir_total)} ₽`],
+    ["Par personne", `${nb(m.avoir_moyen)} ₽`],
+    ["Inégalité", m.inegalite.toFixed(2).replace(".", ",")],
+  ];
+  $("#m-tuiles").innerHTML = tuiles.map(([t, v]) =>
+    `<div class="demo-tuile"><div class="et">${t}</div><div class="va">${v}</div></div>`).join("");
+
+  const d = m.dernier || {};
+  const lignes = (titre, offres, classe) => !offres || !offres.length ? "" :
+    `<div class="titre-echange">${titre}</div>` + offres.map((o) =>
+      `<div class="echange ${classe}"><span>${o.ressource} · ${nb(o.quantite, 1)} à ${nb(o.prix, 2)} ₽</span>
+       <span class="q">${classe === "vente" ? "+" : "−"}${nb(o.valeur)} ₽</span></div>`).join("");
+  $("#m-echanges").innerHTML = d.jour === undefined
+    ? `<p class="vide">Aucune caravane n'est encore passée.</p>`
+    : `<p class="note">Dernier passage au jour ${d.jour}.</p>` +
+      lignes("Vendu", d.ventes, "vente") + lignes("Acheté", d.achats, "achat") ||
+      `<p class="vide">La dernière caravane est repartie les mains vides.</p>`;
+
+  $("#m-prix").innerHTML = Object.entries(m.prix).map(([r, p]) =>
+    `<span>${r}</span><span>${nb(p, 2)} ₽</span>`).join("") +
+    (Object.keys(m.surplus).length
+      ? `<span style="color:var(--bon)">à vendre</span><span style="color:var(--bon)">${
+          Object.entries(m.surplus).map(([r, q]) => `${nb(q)} ${r}`).join(", ")}</span>` : "") +
+    (Object.keys(m.manques).length
+      ? `<span style="color:var(--s2)">à acheter</span><span style="color:var(--s2)">${
+          Object.entries(m.manques).map(([r, q]) => `${nb(q, 1)} ${r}`).join(", ")}</span>` : "");
 }
 
 function rendreDemographie() {

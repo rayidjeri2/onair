@@ -583,6 +583,120 @@ def _enregistrer_savoirs() -> None:
 _enregistrer_savoirs()
 
 
+# --- commerce et monnaie --------------------------------------------------
+
+def _caravane(etat: Etat, p: dict, alea: random.Random) -> str:
+    from . import marche
+
+    bilan = marche.caravane(etat, alea, forcee=True)
+    if not bilan.get("passee"):
+        return "La route est fermée."
+    ventes = ", ".join(f"{o['quantite']:g} {o['ressource']}" for o in bilan["ventes"])
+    achats = ", ".join(f"{o['quantite']:g} {o['ressource']}" for o in bilan["achats"])
+    return (f"Vendu {ventes or 'rien'} pour {bilan['recette']:.0f} pièces ; "
+            f"acheté {achats or 'rien'} pour {bilan['depense']:.0f}.")
+
+
+_a(cle="caravane", nom="Appeler une caravane", categorie="ressources",
+   description="Faire venir les marchands maintenant : on vend le surplus, on achète ce qui bloque.",
+   effet=_caravane)
+
+
+def _route(etat: Etat, p: dict, alea: random.Random) -> str:
+    from . import moteur
+
+    moteur.regler_politique(etat, "commerce", 1.0 if p["ouverte"] else 0.0)
+    return "La route est ouverte." if p["ouverte"] else "Le lieu se ferme au commerce."
+
+
+_a(cle="route", nom="Ouvrir ou fermer la route", categorie="ressources", durable=True,
+   description="Vivre en autarcie, ou dépendre du dehors : deux trajectoires différentes.",
+   parametres=[Parametre("ouverte", "Route ouverte", type="interrupteur", defaut=True)],
+   effet=_route)
+
+
+def _impot(etat: Etat, p: dict, alea: random.Random) -> str:
+    from . import moteur
+
+    moteur.regler_politique(etat, "impot", float(p["part"]) / 100)
+    return f"{int(p['part'])} % des ventes vont au trésor commun, le reste aux gens."
+
+
+_a(cle="impot", nom="Fixer l'impôt", categorie="social", durable=True,
+   description="Part des ventes versée au trésor commun. À 100 %, personne ne s'enrichit "
+               "en propre ; à 0 %, tout va aux individus et les écarts se creusent.",
+   parametres=[Parametre("part", "Part commune", defaut=25, min=0, max=100, pas=5, unite="%")],
+   effet=_impot)
+
+
+def _reserve(etat: Etat, p: dict, alea: random.Random) -> str:
+    from . import moteur
+
+    moteur.regler_politique(etat, "reserve_jours", float(p["jours"]))
+    return f"On garde {int(p['jours'])} jours de vivres avant de vendre quoi que ce soit."
+
+
+_a(cle="reserve", nom="Réserve stratégique", categorie="ressources", durable=True,
+   description="Combien de jours de vivres garder avant de vendre le surplus. "
+               "Vendre trop tôt, c'est risquer l'hiver.",
+   parametres=[Parametre("jours", "Jours gardés", defaut=90, min=0, max=365, pas=5)],
+   effet=_reserve)
+
+
+def _embaucher(etat: Etat, p: dict, alea: random.Random) -> str:
+    from .catalogue import MODELES
+
+    if not etat.chantiers:
+        return "Aucun chantier où mettre ces bras."
+    depense = min(etat.tresor, float(p["pieces"]))
+    if depense < 10:
+        return "Le trésor est vide."
+    etat.tresor = round(etat.tresor - depense, 2)
+    apport = depense / 18.0        # ce que coûte une journée de travail au-dehors
+    part = apport / len(etat.chantiers)
+    for chantier in etat.chantiers:
+        chantier.travail_fait += part
+    return (f"{depense:.0f} pièces dépensées : {apport:.0f} jours-homme "
+            f"de main-d'œuvre extérieure.")
+
+
+_a(cle="embaucher", nom="Embaucher des bras", categorie="batir",
+   description="Payer des ouvriers du dehors pour avancer les chantiers en cours.",
+   parametres=[Parametre("pieces", "Pièces dépensées", defaut=200, min=10, max=20000)],
+   effet=_embaucher)
+
+
+def _tresor(etat: Etat, p: dict, alea: random.Random) -> str:
+    etat.tresor = round(max(0.0, etat.tresor + float(p["pieces"])), 2)
+    return f"Le trésor compte maintenant {etat.tresor:.0f} pièces."
+
+
+_a(cle="tresor", nom="Verser ou retirer de l'argent", categorie="ressources",
+   description="Un héritage, un tribut, un vol : de quoi tester ce que l'argent change.",
+   parametres=[Parametre("pieces", "Pièces", defaut=1000, min=-50000, max=50000, pas=100)],
+   effet=_tresor)
+
+
+def _redistribuer(etat: Etat, p: dict, alea: random.Random) -> str:
+    adultes = [x for x in etat.personnes if not x.enfant]
+    if not adultes:
+        return "Personne à qui donner."
+    total = sum(x.avoir for x in adultes) + etat.tresor * float(p["part"]) / 100
+    etat.tresor = round(etat.tresor * (1 - float(p["part"]) / 100), 2)
+    pour_chacun = total / len(adultes)
+    for x in adultes:
+        x.avoir = round(pour_chacun, 2)
+    return f"Tout est remis à plat : {pour_chacun:.0f} pièces pour chacun."
+
+
+_a(cle="redistribuer", nom="Tout redistribuer", categorie="social",
+   description="Égaliser les fortunes et vider une part du trésor : "
+               "l'indice d'inégalité retombe à zéro.",
+   parametres=[Parametre("part", "Part du trésor partagée", defaut=50, min=0, max=100,
+                         pas=10, unite="%")],
+   effet=_redistribuer)
+
+
 # --- application ----------------------------------------------------------
 
 def appliquer(etat: Etat, cle: str, parametres: dict[str, Any] | None = None) -> str:

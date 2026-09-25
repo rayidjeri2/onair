@@ -144,7 +144,10 @@ def cible_chantier(etat: Etat, ecartes: set[str] | None = None) -> str | None:
         return None
 
     besoins = _besoins_vitaux(etat)
-    if etat.stocks["nourriture"] > moteur.capacite_grenier(etat) * 0.92:
+    # le grenier s'agrandit tant que c'est raisonnable ; au-delà, le surplus
+    # part au commerce ou se perd — on n'empile pas les hangars sans fin.
+    if (etat.stocks["nourriture"] > moteur.capacite_grenier(etat) * 0.92
+            and etat.batiment("hangar") < max(2, etat.population // 8)):
         besoins.append("grenier")
     if etat.territoire.surface("potager") < etat.population * 0.35 and "champs" not in besoins:
         besoins.append("champs")
@@ -169,7 +172,10 @@ def cible_chantier(etat: Etat, ecartes: set[str] | None = None) -> str | None:
         ("quartiers", etat.population > capacite),
         ("maison_terre", effet_total(etat, "abri") < etat.population),
         ("potager", etat.territoire.surface("potager") < etat.population * 0.35),
-        ("hangar", etat.stocks["nourriture"] > grenier * 0.85),
+        # on agrandit le grenier, mais pas indéfiniment : au-delà, le surplus
+        # se vend ou se perd, il ne s'entasse pas.
+        ("hangar", etat.stocks["nourriture"] > grenier * 0.85
+         and etat.batiment("hangar") < max(2, etat.population // 8)),
         ("reservoir", moteur.eau_besoin_jour(etat) > moteur.eau_apport_jour(etat)),
         ("puits", moteur.eau_besoin_jour(etat) > moteur.eau_apport_jour(etat)),
         ("charrue", etat.batiment("charrue") < max(1, etat.population // 12)),

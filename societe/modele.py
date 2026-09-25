@@ -103,6 +103,7 @@ class Personne:
     nee_ici: bool = False
     polyvalence: float = 0.35   # aptitude à travailler hors de sa spécialité
     metier: str = ""            # métier à plein temps, s'il en exerce un
+    avoir: float = 0.0          # sa fortune personnelle, en pièces
     anniversaire: int = 0         # jour de l'année où l'âge augmente
 
     @property
@@ -277,7 +278,14 @@ class Etat:
     journal: Journal = field(default_factory=Journal)
     historique: list[dict[str, float]] = field(default_factory=list)
     en_peril: bool = False
-    politique: dict[str, float] = field(default_factory=lambda: {"natalite": 0.5})
+    politique: dict[str, float] = field(default_factory=lambda: {
+        "natalite": 0.5,
+        "commerce": 1.0,        # 0 = route fermée
+        "impot": 0.25,          # part des ventes versée au trésor commun
+        "reserve_jours": 90.0,  # vivres gardés avant de vendre le surplus
+    })
+    tresor: float = 0.0
+    dernier_marche: dict[str, Any] = field(default_factory=dict)
     intendance: bool = False   # la société se gère-t-elle toute seule ?
     climat: dict[str, float] = field(default_factory=lambda: {
         "jours_par_saison": 91.0,   # longueur d'une saison, donc de l'année
@@ -396,6 +404,7 @@ class Etat:
             "dependance": round(self.taux_dependance(), 2),
             "esperance_vie": self.esperance_vie(),
             "pyramide": self.pyramide(),
+            "tresor": round(self.tresor, 1),
         }
         return d
 
