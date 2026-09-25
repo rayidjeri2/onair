@@ -9,7 +9,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-from . import moteur
+from . import actions, moteur
 from .catalogue import disponibles
 from .modele import COMPETENCES, RESSOURCES, TACHES, TYPES_PARCELLE, Etat
 
@@ -38,6 +38,8 @@ def instantane(etat: Etat) -> dict[str, Any]:
         "etat": etat.vers_dict(),
         "apercu": moteur.apercu(etat),
         "chantiers": disponibles(etat),
+        "actions": actions.catalogue(),
+        "reglages": actions.valeurs_courantes(etat),
         "referentiel": {
             "taches": TACHES,
             "competences": COMPETENCES,
@@ -89,6 +91,8 @@ def traiter(chemin: str, corps: dict[str, Any]) -> dict[str, Any]:
                     moteur.affecter(etat, int(id_personne), str(tache))
                 except ValueError:
                     continue
+        elif chemin == "/api/action":
+            actions.appliquer(etat, str(corps["cle"]), corps.get("parametres") or {})
         elif chemin == "/api/intendance":
             moteur.regler_intendance(etat, bool(corps.get("actif", True)))
         elif chemin == "/api/politique":

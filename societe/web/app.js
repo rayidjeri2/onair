@@ -4,7 +4,9 @@
 let S = null;             // dernier instantané reçu
 let filtre = "tout";
 let seulementRealisables = true;
-let auto = null;          // intervalle du mode « laisser filer »
+let auto = null;          // battement de l'horloge
+let vitesse = 1;          // jours par battement (0 = suspendu)
+let filtreAction = "population";
 
 const $ = (s) => document.querySelector(s);
 const el = (n, a = {}, t) => {
@@ -45,6 +47,7 @@ function rendre() {
   rendrePersonnes();
   rendreLieu();
   rendreChantier();
+  rendreActions();
   rendreCatalogue();
   rendreRessources();
   rendreDemographie();
@@ -650,21 +653,77 @@ function infobulle(html, ev) {
 }
 function cacherInfobulle() { bulle().style.visibility = "hidden"; }
 
-/* ---------------- commandes ---------------- */
-function arreterAuto() {
-  if (auto) { clearInterval(auto); auto = null; }
-  $("#b-auto").textContent = "▶ Laisser filer";
-  $("#b-auto").classList.add("primaire");
+/* ---------------- horloge ---------------- */
+function battre() {
+  if (auto) clearInterval(auto);
+  auto = null;
+  if (vitesse > 0) auto = setInterval(() => api("/api/avancer", { jours: vitesse }), 620);
+  document.querySelectorAll("[data-vitesse]").forEach((b) => {
+    b.classList.toggle("vitesse-active", +b.dataset.vitesse === vitesse);
+  });
 }
-$("#b-auto").onclick = () => {
-  if (auto) return arreterAuto();
-  $("#b-auto").textContent = "⏸ Suspendre";
-  $("#b-auto").classList.remove("primaire");
-  auto = setInterval(() => api("/api/avancer", { jours: 1 }), 550);
-};
-document.querySelectorAll("[data-jours]").forEach((b) => {
-  b.onclick = () => api("/api/avancer", { jours: +b.dataset.jours });
+function arreterAuto() { vitesse = 0; battre(); }
+document.querySelectorAll("[data-vitesse]").forEach((b) => {
+  b.onclick = () => { vitesse = +b.dataset.vitesse; battre(); };
 });
+$("#b-pas").onclick = () => api("/api/avancer", { jours: 1 });
+
+/* ---------------- interventions ---------------- */
+let signatureActions = null;
+
+function rendreActions() {
+  const actions = S.actions || [];
+  // le panneau ne se redessine que si nécessaire : sinon l'horloge effacerait
+  // les valeurs en cours de saisie à chaque battement
+  const signature = `${filtreAction}|${actions.length}|${JSON.stringify(S.reglages || {})}`;
+  if (signature === signatureActions && $("#x-liste").children.length) return;
+  signatureActions = signature;
+  const cats = [...new Map(actions.map((a) => [a.categorie, a.categorie_nom])).entries()];
+  $("#x-filtres").innerHTML = cats.map(([c, nom]) =>
+    `<button data-cat-action="${c}" aria-pressed="${filtreAction === c}">${nom}</button>`).join("");
+  $("#x-filtres").querySelectorAll("button").forEach((b) => {
+    b.onclick = () => { filtreAction = b.dataset.catAction; rendreActions(); };
+  });
+
+  const reglages = S.reglages || {};
+  const champ = (a, p) => {
+    const id = `x-${a.cle}-${p.cle}`;
+    const courant = reglages[`${a.cle}.${p.cle}`];
+    const valeur = courant !== undefined ? courant : p.defaut;
+    if (p.type === "choix") {
+      return `<div class="param large"><label for="${id}">${p.libelle}</label>
+        <select id="${id}">${p.options.map((o) =>
+          `<option value="${o}" ${o === valeur ? "selected" : ""}>${o}</option>`).join("")}</select></div>`;
+    }
+    return `<div class="param"><label for="${id}">${p.libelle}${p.unite ? ` (${p.unite})` : ""}</label>
+      <input id="${id}" type="number" value="${valeur}" min="${p.min}" max="${p.max}" step="${p.pas}"></div>`;
+  };
+
+  const liste = actions.filter((a) => a.categorie === filtreAction);
+  $("#x-liste").innerHTML = liste.map((a) => `
+    <div class="action" data-action="${a.cle}">
+      <h3>${a.nom}</h3>
+      ${a.durable ? `<span class="marque-durable">réglage durable</span>` : ""}
+      <div class="desc">${a.description}</div>
+      <div class="params">${a.parametres.map((p) => champ(a, p)).join("")}</div>
+      <button data-appliquer="${a.cle}">Appliquer</button>
+    </div>`).join("");
+
+  $("#x-liste").querySelectorAll("[data-appliquer]").forEach((b) => {
+    b.onclick = () => {
+      const cle = b.dataset.appliquer;
+      const a = actions.find((x) => x.cle === cle);
+      const parametres = {};
+      for (const p of a.parametres) {
+        const n = document.getElementById(`x-${cle}-${p.cle}`);
+        parametres[p.cle] = p.type === "choix" ? n.value : +n.value;
+      }
+      api("/api/action", { cle, parametres });
+    };
+  });
+}
+
+/* ---------------- commandes ---------------- */
 $("#b-sauver").onclick = async () => {
   const nom = prompt("Nom de la sauvegarde", "partie");
   if (nom) await api("/api/sauver", { nom });
@@ -682,10 +741,14 @@ $("#b-theme").onclick = () => {
 };
 
 /* --- accueil --- */
-$("#a-commencer").onclick = () => api("/api/nouvelle", {
-  nom: $("#a-nom").value, age: +$("#a-age").value, graine: +$("#a-graine").value,
-  sexe: $("#a-sexe").value,
-});
+$("#a-commencer").onclick = async () => {
+  await api("/api/nouvelle", {
+    nom: $("#a-nom").value, age: +$("#a-age").value, graine: +$("#a-graine").value,
+    sexe: $("#a-sexe").value,
+  });
+  await api("/api/intendance", { actif: true });   // le quotidien se gère tout seul
+  vitesse = 1; battre();                            // et le temps se met à tourner
+};
 $("#a-charger").onclick = async () => {
   const nom = prompt("Nom de la sauvegarde à reprendre", "partie");
   if (nom) await api("/api/charger", { nom });
@@ -742,11 +805,11 @@ modale.addEventListener("close", () => {
 
 addEventListener("keydown", (e) => {
   if (e.target.matches("input, select, textarea")) return;
-  if (e.key === " ") { e.preventDefault(); $("#b-auto").click(); }
+  if (e.key === " ") { e.preventDefault(); vitesse = vitesse > 0 ? 0 : 1; battre(); }
   if (e.key === "ArrowRight") api("/api/avancer", { jours: e.shiftKey ? 7 : 1 });
 });
 
 /* --- démarrage : reprendre la partie en cours s'il y en a une --- */
 fetch("/api/etat").then((r) => r.json()).then((d) => {
-  if (d && d.etat) { S = d; rendre(); }
+  if (d && d.etat) { S = d; rendre(); battre(); }
 });

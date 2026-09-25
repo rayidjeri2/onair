@@ -46,12 +46,13 @@
     </div>
     <div class="indicateurs" id="b-indicateurs"></div>
     <div class="commandes">
-      <div class="groupe-temps">
-        <button data-jours="1">+1 j</button>
-        <button data-jours="7">+7 j</button>
-        <button data-jours="30">+30 j</button>
+      <div class="groupe-temps" id="b-vitesses">
+        <button data-vitesse="0" title="suspendre le temps">❚❚</button>
+        <button data-vitesse="1" title="un jour à la fois">×1</button>
+        <button data-vitesse="7" title="une semaine par battement">×7</button>
+        <button data-vitesse="30" title="un mois par battement">×30</button>
       </div>
-      <button id="b-auto" class="primaire">▶ Laisser filer</button>
+      <button id="b-pas" class="discret" title="avancer d'un seul jour">+1 j</button>
       <div class="groupe-outils">
         <button id="b-sauver" class="discret" title="Sauvegarder la partie" aria-label="Sauvegarder">⤓</button>
         <button id="b-recommencer" class="discret" title="Repartir de zéro" aria-label="Recommencer">↺</button>
@@ -102,6 +103,14 @@
 
     <!-- colonne centre -->
     <section class="colonne-centre">
+      <div class="carte" id="carte-actions">
+        <h2>Agir sur la société</h2>
+        <p class="sous">Le temps tourne et l'intendance gère le quotidien. À vous les décisions
+          qui changent la donne — et le journal garde trace de chacune.</p>
+        <div class="filtres" id="x-filtres"></div>
+        <div id="x-liste" class="actions"></div>
+      </div>
+
       <div class="carte">
         <h2>Le lieu</h2>
         <p class="sous" id="c-territoire">—</p>

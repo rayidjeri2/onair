@@ -20,6 +20,15 @@ python -m societe --port 9000
 Aucune dépendance : la simulation et le serveur n'utilisent que la bibliothèque
 standard de Python (≥ 3.11).
 
+## Le principe
+
+Le temps tourne tout seul dès la première seconde et **l'intendance gère le
+quotidien** — qui bêche, qui porte l'eau, quel chantier ouvrir. Votre rôle
+n'est pas de micro-gérer : c'est d'**intervenir**. Vous envoyez une épidémie,
+allongez les saisons, faites venir trente personnes d'un coup, brûlez la forêt,
+puis vous regardez ce que la société en fait. Chaque intervention est consignée
+avec sa date, ses paramètres et son résultat.
+
 ## Ce que vous pilotez
 
 | Levier | Effet |
@@ -48,6 +57,27 @@ standard de Python (≥ 3.11).
   réservoirs construits — au-delà, le surplus est perdu.
 - **La démographie** (voir ci-dessous) : la population grandit toute seule, une fois
   qu'il y a de quoi nourrir et loger des enfants.
+
+## Les interventions
+
+27 leviers, en six familles, chacun avec ses paramètres :
+
+| Famille | Exemples |
+|---|---|
+| **Population** | faire venir 1 à 50 personnes, accueillir une famille, provoquer des départs, faire venir une sommité dans un savoir-faire, régler le désir d'enfants |
+| **Épreuves** | épidémie (gravité, contagion, durée), destruction des réserves, sécheresse, tempête qui emporte des bâtiments, incendie de forêt, accident |
+| **Climat et temps** | durée des saisons, dureté de l'hiver, régime des pluies, décalage des températures, fertilité des sols |
+| **Ressources** | livrer ou vider un stock, aménager du terrain d'un coup |
+| **Bâtir** | construire instantanément, démolir, imposer un chantier |
+| **Vie collective** | organiser une fête, semer la discorde, provoquer une scission, transmettre un savoir, décréter un repos |
+
+Les réglages marqués **durables** (climat, natalité) restent en vigueur et
+affichent leur valeur courante ; les autres sont des chocs ponctuels.
+
+Quelques expériences que cela permet : *que vaut un dispensaire ?* (déclencher
+deux fois la même épidémie, avec et sans) ; *quelle est la taille critique ?*
+(scinder le groupe à 40 % et voir s'il se relève) ; *le stockage ou la
+production ?* (ramener les saisons à 30 jours et regarder qui meurt d'abord).
 
 ## L'intendance automatique
 
@@ -151,6 +181,8 @@ plafonne à cinq personnes.
 ```
 societe/
   modele.py      personnes, parcelles, stocks, chantiers — tout est sérialisable
+  actions.py     les 27 interventions du joueur, avec leurs paramètres
+  intendance.py  l'intendance automatique : chantiers et affectations
   catalogue.py   les 34 chantiers : coûts, prérequis, effets
   moteur.py      une journée de simulation ; constantes de calibrage en tête de fichier
   serveur.py     API JSON + service des fichiers web (bibliothèque standard)

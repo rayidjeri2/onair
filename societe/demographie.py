@@ -62,6 +62,7 @@ ARRIVEES = [
 
 def passer_le_jour(etat: Etat, alea: random.Random) -> None:
     """Toute la démographie d'une journée, dans l'ordre de la vie."""
+    _propager_epidemie(etat, alea)
     _vieillir(etat)
     _eduquer(etat)
     _former_les_couples(etat, alea)
@@ -70,11 +71,32 @@ def passer_le_jour(etat: Etat, alea: random.Random) -> None:
     _mourir(etat, alea)
 
 
+def _propager_epidemie(etat: Etat, alea: random.Random) -> None:
+    """Une épidémie en cours frappe chaque jour, puis s'éteint d'elle-même."""
+    mal = etat.epidemie
+    if not mal or mal.get("jours", 0) <= 0:
+        etat.epidemie = {}
+        return
+    soins = 1.0 - min(0.7, effet_total(etat, "soin") * 0.4
+                      + effet_total(etat, "salubrite") * 0.015)
+    for p in list(etat.personnes):
+        if alea.random() < mal.get("contagion", 0.3):
+            perte = mal.get("gravite", 10.0) * soins * alea.uniform(0.5, 1.5)
+            p.sante = max(0.0, p.sante - perte)
+            p.moral = max(0.0, p.moral - perte * 0.3)
+    mal["jours"] -= 1
+    if mal["jours"] <= 0:
+        etat.journal.noter(etat.jour, f"L'épidémie ({mal.get('nom', 'fièvre')}) s'éteint.", "info")
+        etat.epidemie = {}
+
+
 # --- âge et enfance -------------------------------------------------------
 
 def _vieillir(etat: Etat) -> None:
     for p in etat.personnes:
-        if etat.jour_annee == p.anniversaire and etat.jour > 0:
+        # l'anniversaire est ramené dans l'année courante : la longueur de
+        # l'année peut avoir changé depuis la naissance
+        if etat.jour_annee == p.anniversaire % etat.jours_par_an and etat.jour > 0:
             p.age += 1
             if p.age == AGE_TRAVAIL:
                 p.tache = "nourriture"

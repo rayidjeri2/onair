@@ -29,6 +29,7 @@ URGENCES = {
     "abri": ["maison_terre", "cabane", "campement"],
     "grenier": ["cave", "hangar"],
     "champs": ["potager", "defrichage"],
+    "gouvernance": ["quartiers", "conseil", "place", "archives", "ecole"],
 }
 
 
@@ -80,6 +81,11 @@ def cible_chantier(etat: Etat) -> str | None:
         besoins.append("grenier")
     if etat.territoire.surface("potager") < etat.population * 0.35:
         besoins.append("champs")
+    # un groupe qui dépasse sa capacité de coordination se paralyse :
+    # c'est aussi urgent que l'eau, et cela se répare en construisant.
+    capacite = moteur.CAPACITE_GOUVERNANCE_BASE + effet_total(etat, "gouvernance")
+    if etat.population > capacite:
+        besoins.insert(0 if etat.population > capacite * 1.5 else len(besoins), "gouvernance")
 
     for besoin in besoins:
         for cle in URGENCES[besoin]:
@@ -88,9 +94,21 @@ def cible_chantier(etat: Etat) -> str | None:
     for cle in DEVELOPPEMENT:
         if cle in ouvrables and not ouvrables[cle]["construit"]:
             return cle
-    # tout est bâti : on agrandit ce qui se répète et qui sert encore
-    for cle in ("maison_terre", "potager", "hangar", "reservoir", "reforestation"):
-        if cle in ouvrables:
+
+    # Tout est bâti. On n'agrandit que ce qui répond à un besoin mesuré :
+    # sans cette condition, l'intendance empilerait des bâtiments sans fin.
+    grenier = moteur.capacite_grenier(etat)
+    encore = [
+        ("quartiers", etat.population > capacite),
+        ("maison_terre", effet_total(etat, "abri") < etat.population),
+        ("potager", etat.territoire.surface("potager") < etat.population * 0.35),
+        ("hangar", etat.stocks["nourriture"] > grenier * 0.85),
+        ("reservoir", moteur.eau_besoin_jour(etat) > moteur.eau_apport_jour(etat)),
+        ("puits", moteur.eau_besoin_jour(etat) > moteur.eau_apport_jour(etat)),
+        ("reforestation", etat.territoire.surface("foret") < etat.population * 1.5),
+    ]
+    for cle, necessaire in encore:
+        if necessaire and cle in ouvrables:
             return cle
     return None
 

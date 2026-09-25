@@ -272,6 +272,15 @@ class Etat:
     en_peril: bool = False
     politique: dict[str, float] = field(default_factory=lambda: {"natalite": 0.5})
     intendance: bool = False   # la société se gère-t-elle toute seule ?
+    climat: dict[str, float] = field(default_factory=lambda: {
+        "jours_par_saison": 91.0,   # longueur d'une saison, donc de l'année
+        "durete_hiver": 1.0,        # 0 = hiver doux, 2 = hiver mortel
+        "pluie": 1.0,               # facteur sur la fréquence des pluies
+        "temperature": 0.0,         # décalage en degrés
+        "fertilite": 1.0,           # facteur sur tous les rendements agricoles
+    })
+    interventions: list[dict[str, Any]] = field(default_factory=list)
+    epidemie: dict[str, float] = field(default_factory=dict)
     demographie: dict[str, float] = field(default_factory=lambda: {
         "naissances": 0, "deces": 0, "ages_au_deces": 0.0, "couples_formes": 0,
     })
@@ -282,16 +291,24 @@ class Etat:
     # -- calendrier -------------------------------------------------------
 
     @property
+    def jours_par_saison(self) -> float:
+        return max(1.0, float(self.climat.get("jours_par_saison", 91.0)))
+
+    @property
+    def jours_par_an(self) -> int:
+        return max(4, int(round(self.jours_par_saison * 4)))
+
+    @property
     def annee(self) -> int:
-        return self.jour // 365 + 1
+        return self.jour // self.jours_par_an + 1
 
     @property
     def jour_annee(self) -> int:
-        return self.jour % 365
+        return self.jour % self.jours_par_an
 
     @property
     def saison(self) -> str:
-        return SAISONS[int(self.jour_annee / 365 * 4) % 4]
+        return SAISONS[int(self.jour_annee / self.jours_par_an * 4) % 4]
 
     @property
     def date_lisible(self) -> str:

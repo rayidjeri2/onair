@@ -269,11 +269,14 @@ def _un_jour(etat: Etat) -> None:
 
 def _mettre_a_jour_meteo(etat: Etat, alea: random.Random) -> None:
     saison = etat.saison
-    base = SAISON_TEMPERATURE[saison]
+    climat = etat.climat
+    base = SAISON_TEMPERATURE[saison] + climat.get("temperature", 0.0)
+    if saison == "hiver":
+        base -= 4.0 * (climat.get("durete_hiver", 1.0) - 1.0)
     temperature = base + alea.gauss(0, 4)
     pluie = 0.0
-    if alea.random() < SAISON_PLUIE[saison]:
-        pluie = abs(alea.gauss(6, 5))
+    if alea.random() < SAISON_PLUIE[saison] * climat.get("pluie", 1.0):
+        pluie = abs(alea.gauss(6, 5)) * climat.get("pluie", 1.0)
     if temperature > 30:
         description = "chaleur écrasante"
     elif temperature < 2:
@@ -327,9 +330,10 @@ def _produire(etat: Etat, travail: dict[str, float], alea: random.Random) -> Non
     s["eau"] = min(eau_max, s["eau"])
 
     # --- nourriture
-    rendement = 1.0 + effet_total(etat, "rendement")
+    rendement = (1.0 + effet_total(etat, "rendement")) * etat.climat.get("fertilite", 1.0)
     saisonnier = SAISON_RENDEMENT[saison]
     if saison == "hiver":
+        saisonnier = max(0.02, saisonnier / max(0.2, etat.climat.get("durete_hiver", 1.0)))
         saisonnier += effet_total(etat, "saison_froide")
     surface = etat.territoire.surface_productive("potager")
     stress_hydrique = 1.0 if s["eau"] > etat.population * BESOIN_EAU * 2 else 0.6
