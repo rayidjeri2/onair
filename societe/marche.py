@@ -106,6 +106,10 @@ def caravane(etat: Etat, alea: random.Random, forcee: bool = False) -> dict:
 
     # ce qu'une caravane peut emporter : la route et la taille du lieu comptent
     capacite = 90 * (1 + 4 * effet_total(etat, "logistique")) * max(1.0, etat.population / 10)
+    # Les marchands n'ont pas une bourse sans fond : ils repartent quand ils
+    # ont dépensé ce qu'ils avaient. C'est ce qui empêche un lieu de vendre
+    # des montagnes de grain à prix constant.
+    bourse_caravane = 250 + 45 * etat.population * (1 + effet_total(etat, "logistique"))
     ventes: list[Offre] = []
     achats: list[Offre] = []
     recette = 0.0
@@ -114,20 +118,33 @@ def caravane(etat: Etat, alea: random.Random, forcee: bool = False) -> dict:
                                       key=lambda x: -x[1] * PRIX_BASE.get(x[0], 1)):
         if capacite <= 0:
             break
-        vendu = min(quantite, capacite)
         prix = prix_courant(etat, ressource, alea)
+        # plus on remplit la caravane d'une même chose, moins la dernière
+        # unité vaut cher : les marchands savent qu'on cherche à s'en défaire
+        offert = min(quantite, capacite)
+        prix *= 1.0 - 0.3 * (offert / max(capacite, 1.0))
+        vendu = min(offert, (bourse_caravane - recette) / prix if prix else 0)
+        if vendu < 1:
+            continue
         valeur = vendu * prix
         etat.stocks[ressource] -= vendu
         recette += valeur
         capacite -= vendu
+        if recette >= bourse_caravane:
+            ventes.append(Offre(ressource, round(vendu, 1), round(prix, 2), round(valeur, 1)))
+            break
         ventes.append(Offre(ressource, round(vendu, 1), round(prix, 2), round(valeur, 1)))
 
+    # On partage la recette AVANT d'acheter : seule la part commune est
+    # dépensable, sinon le trésor pourrait passer sous zéro.
+    _repartir(etat, recette)
+
     depense = 0.0
-    bourse = etat.tresor + recette
     for ressource, quantite in sorted(manques(etat).items(),
                                       key=lambda x: -x[1] * PRIX_BASE.get(x[0], 1)):
         prix = prix_courant(etat, ressource, alea) * MARGE_ACHAT
-        abordable = min(quantite, (bourse - depense) / prix if prix else 0)
+        reste = etat.tresor - depense
+        abordable = min(quantite, reste / prix if prix else 0)
         if abordable < 1:
             continue
         cout = abordable * prix
@@ -135,9 +152,8 @@ def caravane(etat: Etat, alea: random.Random, forcee: bool = False) -> dict:
         depense += cout
         achats.append(Offre(ressource, round(abordable, 1), round(prix, 2), round(cout, 1)))
 
-    _repartir(etat, recette)
     _depenser(etat)
-    etat.tresor = round(etat.tresor - depense, 2)
+    etat.tresor = round(max(0.0, etat.tresor - depense), 2)
     etat.dernier_marche = {
         "jour": etat.jour,
         "ventes": [vars(o) for o in ventes],

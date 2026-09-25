@@ -82,8 +82,9 @@ def test_l_impot_partage_entre_tresor_et_fortunes():
         e = bourg()
         moteur.regler_politique(e, "impot", part)
         moteur.regler_politique(e, "reserve_jours", 10)
-        marche.caravane(e, random.Random(4), forcee=True)
-        return e.tresor, sum(p.avoir for p in e.personnes)
+        bilan = marche.caravane(e, random.Random(4), forcee=True)
+        # le trésor a pu être dépensé aussitôt en achats : on le recompose
+        return e.tresor + bilan["depense"], sum(p.avoir for p in e.personnes)
 
     tout_commun, rien_prive = repartition(1.0)
     rien_commun, tout_prive = repartition(0.0)
@@ -142,3 +143,32 @@ def test_le_commerce_survit_a_la_sauvegarde():
     assert copie.tresor == e.tresor
     assert copie.dernier_marche == e.dernier_marche
     assert [p.avoir for p in copie.personnes] == [p.avoir for p in e.personnes]
+
+
+def test_le_tresor_ne_passe_jamais_sous_zero():
+    e = bourg(personnes=14)
+    moteur.regler_politique(e, "reserve_jours", 10)
+    moteur.regler_politique(e, "impot", 0.1)   # presque tout part aux particuliers
+    e.stocks["planches"] = 0                   # donc beaucoup à racheter
+    for i in range(12):
+        marche.caravane(e, random.Random(i), forcee=True)
+        assert e.tresor >= 0, f"trésor négatif au passage {i}"
+    assert all(p.avoir >= 0 for p in e.personnes)
+
+
+def test_le_marche_sature_quand_on_deverse():
+    """Vendre plus rapporte plus, mais de moins en moins par unité."""
+    def vente(stock):
+        e = bourg(personnes=12)
+        moteur.regler_politique(e, "reserve_jours", 0)
+        e.stocks.update({k: 0.0 for k in ("nourriture", "planches", "bois", "compost")})
+        e.stocks["recup"] = stock
+        e.batiments["hangar"] = 40
+        bilan = marche.caravane(e, random.Random(8), forcee=True)
+        offre = bilan["ventes"][0]
+        return offre["valeur"], offre["prix"]
+
+    # au-dessus de la réserve de récupération, sinon il n'y a rien à vendre
+    (valeur_petite, prix_petit), (valeur_grosse, prix_gros) = vente(200), vente(4000)
+    assert valeur_grosse > valeur_petite      # on gagne plus en vendant plus
+    assert prix_gros < prix_petit             # mais chaque unité vaut moins

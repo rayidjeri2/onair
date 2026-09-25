@@ -64,8 +64,24 @@ def decider(etat: Etat) -> None:
             continue
         cible = cible or vise    # ce qu'on va chercher à rassembler
         ecartes.add(vise)
+    _depenser_le_tresor(etat)
     _confier_les_metiers(etat)
     _affecter_tout_le_monde(etat, cible or cible_chantier(etat))
+
+
+def _depenser_le_tresor(etat: Etat) -> None:
+    """L'argent qui dort ne sert à rien : on paie des bras du dehors.
+
+    C'est le débouché du trésor commun — sans lui, les pièces s'entassent
+    sans jamais rien changer.
+    """
+    if not etat.chantiers or etat.tresor < 500:
+        return
+    depense = min(etat.tresor * 0.06, 40.0 * etat.population)
+    etat.tresor = round(etat.tresor - depense, 2)
+    apport = depense / 18.0
+    for chantier in etat.chantiers:
+        chantier.travail_fait += apport / len(etat.chantiers)
 
 
 # --- division du travail --------------------------------------------------
