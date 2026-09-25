@@ -25,7 +25,8 @@ standard de Python (≥ 3.11).
 | Levier | Effet |
 |---|---|
 | **Le temps** | il n'avance que si vous le demandez (+1, +7, +30 jours, ou en continu) |
-| **Les arrivées** | nom, âge, savoir-faire, histoire — à vous de choisir le moment |
+| **Les arrivées** | nom, âge, sexe, savoir-faire, histoire — à vous de choisir le moment |
+| **Le désir d'enfants** | un curseur, de « aucun enfant voulu » à « autant que le lieu peut en porter » |
 | **Les affectations** | chacun ne fait qu'**une** chose par jour : cultiver, bûcheronner, bâtir, soigner, enseigner, coordonner… |
 | **Les chantiers** | un seul à la fois, à choisir dans un catalogue de 34 constructions |
 
@@ -40,6 +41,55 @@ standard de Python (≥ 3.11).
   commune, puis le conseil, repoussent ce plafond. C'est le cœur du jeu : **faire venir
   du monde n'est pas gratuit**.
 - **La maturation** : un verger planté aujourd'hui ne nourrit personne avant trois ans.
+- **La démographie** (voir ci-dessous) : la population grandit toute seule, une fois
+  qu'il y a de quoi nourrir et loger des enfants.
+
+## La démographie
+
+Les arrivées restent votre décision, mais elles ne sont plus la seule source de
+population.
+
+**Les couples** se forment entre adultes libres d'âges proches, jamais entre
+apparentés, d'autant plus facilement que la cohésion et le moral sont bons.
+
+**Les conceptions** dépendent du curseur de natalité *et* des conditions
+réelles : santé de la mère, vivres d'avance, place disponible à l'abri, nombre
+de tout-petits déjà à charge, âge. On ne fait pas d'enfant à jeun ni sans lit
+pour le coucher. La gestation dure 274 jours, avec un risque de fausse couche
+quand la santé est basse, et un risque à l'accouchement que le dispensaire et
+la salubrité réduisent nettement.
+
+**L'enfance** : pas de travail avant 14 ans, une ration réduite (40 % avant
+5 ans, 70 % ensuite), et un apprentissage qui se fait d'abord auprès des
+parents — un enfant ne peut hériter que de ce que quelqu'un autour de lui sait
+faire. L'école et les enseignants accélèrent la transmission. À 14 ans,
+l'enfant prend sa part du travail.
+
+**La mortalité** suit une loi de Gompertz : un risque qui double environ tous
+les huit ans, modulé par la santé, les soins et la salubrité, avec une
+mortalité de la petite enfance à part. Construire les toilettes sèches, le
+filtre à eau et le dispensaire change l'espérance de vie de la société de
+façon visible.
+
+**Les départs** sont progressifs : on ne part que découragé, jamais en laissant
+de jeunes enfants derrière soi, et jamais tout le monde le même jour.
+
+### Ce que la démographie apprend
+
+Le curseur de natalité produit trois régimes nettement différents sur 80 ans,
+avec la même stratégie de construction par ailleurs :
+
+| Désir d'enfants | Issue |
+|---|---|
+| **0,3** | croissance lente et tenue — environ 180 personnes, quatre générations, des anciens |
+| **0,6** | effondrement vers l'an 55 : les adultes s'épuisent plus vite qu'ils ne sont remplacés |
+| **0,9** | effondrement vers l'an 50, avec une espérance de vie très dégradée |
+
+Le mécanisme est le taux de dépendance : chaque enfant mange et occupe un lit
+pendant quatorze ans avant de produire quoi que ce soit. Une société qui fait
+des enfants plus vite qu'elle n'augmente ses vivres, son eau, ses abris et sa
+capacité de coordination meurt de sa propre croissance — et c'est bien sa
+croissance, pas un malheur extérieur, qui la tue.
 
 ## Les grandes étapes
 
