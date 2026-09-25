@@ -38,18 +38,25 @@
 <div id="jeu" hidden>
   <header class="barre">
     <div class="bloc-date">
-      <strong id="b-date">—</strong>
+      <div class="ligne-date">
+        <span class="saison" id="b-saison" aria-hidden="true"></span>
+        <strong id="b-date">—</strong>
+      </div>
       <span id="b-meteo" class="sous">—</span>
     </div>
     <div class="indicateurs" id="b-indicateurs"></div>
     <div class="commandes">
-      <button data-jours="1">+1 j</button>
-      <button data-jours="7">+7 j</button>
-      <button data-jours="30">+30 j</button>
+      <div class="groupe-temps">
+        <button data-jours="1">+1 j</button>
+        <button data-jours="7">+7 j</button>
+        <button data-jours="30">+30 j</button>
+      </div>
       <button id="b-auto" class="primaire">▶ Laisser filer</button>
-      <button id="b-sauver" class="discret" title="Sauvegarder">💾</button>
-      <button id="b-recommencer" class="discret" title="Repartir de zéro">↺</button>
-      <button id="b-theme" class="discret" title="Thème">◐</button>
+      <div class="groupe-outils">
+        <button id="b-sauver" class="discret" title="Sauvegarder la partie" aria-label="Sauvegarder">⤓</button>
+        <button id="b-recommencer" class="discret" title="Repartir de zéro" aria-label="Recommencer">↺</button>
+        <button id="b-theme" class="discret" title="Basculer clair / sombre" aria-label="Thème">◐</button>
+      </div>
     </div>
   </header>
 

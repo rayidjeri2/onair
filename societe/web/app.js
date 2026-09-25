@@ -56,23 +56,107 @@ function rendre() {
 function rendreBarre() {
   const e = S.etat, d = e.derive, a = S.apercu;
   $("#b-date").textContent = d.date;
+  $("#b-saison").dataset.saison = d.saison;
+  $("#b-saison").title = d.saison;
   $("#b-meteo").textContent = `${e.meteo.description}, ${nb(e.meteo.temperature, 1)} °C` +
     (e.meteo.pluie > 0 ? ` · ${nb(e.meteo.pluie, 1)} mm` : "");
-  const seuil = (v, bas, tresbas) => v <= tresbas ? "alerte" : (v <= bas ? "prudence" : "");
-  const ind = [
-    ["Habitants", nb(d.population), ""],
-    ["Vivres", `${nb(a.autonomie_nourriture_jours, 1)} j`, seuil(a.autonomie_nourriture_jours, 10, 3)],
-    ["Eau", a.eau_deficit > 0 ? `−${nb(a.eau_deficit)} L/j` : `${nb(a.autonomie_eau_jours, 1)} j`,
-      a.eau_deficit > 0 ? (a.autonomie_eau_jours < 2 ? "alerte" : "prudence")
-        : seuil(a.autonomie_eau_jours, 4, 1)],
-    ["Moral", nb(d.moral), seuil(d.moral, 40, 22)],
-    ["Santé", nb(d.sante), seuil(d.sante, 60, 35)],
-    ["Cohésion", nb(e.cohesion * 100), seuil(e.cohesion * 100, 55, 35)],
-    ["Coordination", `${nb(a.coordination * 100)} %`, seuil(a.coordination * 100, 75, 55)],
-    ["Abri", `${nb(a.abri)}/${nb(d.population)}`, a.abri < d.population ? "prudence" : ""],
+
+  // tendance sur les trente derniers jours relevés
+  const h = e.historique;
+  const avant = h.length > 30 ? h[h.length - 31] : h[0];
+  const tendance = (cle, actuel) => {
+    if (!avant || avant[cle] == null) return "";
+    const delta = actuel - avant[cle];
+    const seuil = Math.max(0.5, Math.abs(avant[cle]) * 0.03);
+    if (delta > seuil) return `<span class="tendance monte" title="en hausse">▲</span>`;
+    if (delta < -seuil) return `<span class="tendance baisse" title="en baisse">▼</span>`;
+    return "";
+  };
+
+  const etat = (v, bas, tresbas) => v <= tresbas ? "alerte" : (v <= bas ? "prudence" : "bon");
+  const eauCritique = a.eau_deficit > 0;
+
+  const cellules = [
+    {
+      cle: "Habitants", valeur: nb(d.population), unite: "",
+      part: null, etat: "bon", fleche: tendance("population", d.population),
+      aide: `${d.actifs} en âge de travailler, ${d.enfants} enfant${d.enfants > 1 ? "s" : ""}, ` +
+            `${d.anciens} ancien${d.anciens > 1 ? "s" : ""}.` +
+            (d.grossesses ? `<br>${d.grossesses} grossesse${d.grossesses > 1 ? "s" : ""} en cours.` : ""),
+    },
+    {
+      cle: "Vivres", valeur: nb(a.autonomie_nourriture_jours, 1), unite: "j",
+      part: Math.min(1, a.autonomie_nourriture_jours / 60),
+      etat: etat(a.autonomie_nourriture_jours, 12, 4),
+      fleche: tendance("nourriture", e.stocks.nourriture),
+      aide: `${nb(e.stocks.nourriture)} portions en réserve sur ${nb(a.grenier)} stockables.` +
+            `<br>Il en faut ${nb(a.autonomie_nourriture_jours ? e.stocks.nourriture / a.autonomie_nourriture_jours : 0, 1)} par jour.` +
+            `<br><i>L'hiver dure 90 jours à rendement réduit.</i>`,
+    },
+    {
+      cle: "Eau", valeur: eauCritique ? `−${nb(a.eau_deficit)}` : nb(a.autonomie_eau_jours, 1),
+      unite: eauCritique ? "L/j" : "j",
+      part: eauCritique ? 1 - Math.min(1, a.eau_deficit / Math.max(1, a.eau_besoin_jour))
+        : Math.min(1, a.autonomie_eau_jours / 10),
+      etat: eauCritique ? (a.autonomie_eau_jours < 2 ? "alerte" : "prudence")
+        : etat(a.autonomie_eau_jours, 4, 1),
+      fleche: tendance("eau", e.stocks.eau),
+      aide: `Il arrive ${nb(a.eau_apport_jour)} L par jour, il en faut ${nb(a.eau_besoin_jour)}.` +
+            (eauCritique ? `<br><b>Il manque ${nb(a.eau_deficit)} L chaque jour</b> : porter l'eau, ` +
+              `capter la source ou creuser un puits.` : "") +
+            `<br>${nb(e.stocks.eau)} L stockés sur ${nb(a.eau_max)}.`,
+    },
+    {
+      cle: "Abri", valeur: `${nb(a.abri)}/${nb(d.population)}`, unite: "",
+      part: d.population ? Math.min(1, a.abri / d.population) : 1,
+      etat: a.abri >= d.population ? "bon" : (a.abri >= d.population * 0.7 ? "prudence" : "alerte"),
+      fleche: "",
+      aide: a.abri >= d.population
+        ? "Tout le monde dort au sec."
+        : `${nb(d.population - a.abri)} personne(s) sans place : santé, moral et énergie en souffrent.`,
+    },
+    {
+      cle: "Moral", valeur: nb(d.moral), unite: "", part: d.moral / 100,
+      etat: etat(d.moral, 40, 22), fleche: tendance("moral", d.moral),
+      aide: "Dépend du confort, des vivres, de l'abri, de la cohésion et de la famille." +
+            "<br>En dessous de 6, les adultes finissent par partir.",
+    },
+    {
+      cle: "Santé", valeur: nb(d.sante), unite: "", part: d.sante / 100,
+      etat: etat(d.sante, 60, 35), fleche: tendance("sante", d.sante),
+      aide: "Dépend des rations, de l'eau, de la salubrité, du froid et des soins." +
+            "<br>À zéro, on meurt d'épuisement.",
+    },
+    {
+      cle: "Cohésion", valeur: nb(e.cohesion * 100), unite: "%", part: e.cohesion,
+      etat: etat(e.cohesion * 100, 55, 35), fleche: tendance("cohesion", e.cohesion),
+      aide: "Se dégrade quand le groupe dépasse ce que la gouvernance peut tenir." +
+            "<br>La salle commune, le conseil et l'école la soutiennent.",
+    },
+    {
+      cle: "Coordin.", valeur: nb(a.coordination * 100), unite: "%", part: a.coordination,
+      etat: etat(a.coordination * 100, 75, 55), fleche: "",
+      aide: `Part du travail réellement utile. Gouvernance : ${e.gouvernance}, ` +
+            `tenable jusqu'à ${nb(a.capacite_gouvernance)} personnes.` +
+            (d.population > a.capacite_gouvernance
+              ? `<br><b>${nb(d.population - a.capacite_gouvernance)} de trop</b> : chacun travaille moins bien.`
+              : ""),
+    },
   ];
-  $("#b-indicateurs").innerHTML = ind.map(([t, v, c]) =>
-    `<div class="ind"><div class="et">${t}</div><div class="va ${c}">${v}</div></div>`).join("");
+
+  $("#b-indicateurs").innerHTML = cellules.map((c, i) => `
+    <div class="ind" data-etat="${c.etat}" data-i="${i}">
+      <div class="et">${c.cle}</div>
+      <div class="va">${c.valeur}${c.unite ? `<span class="unite">${c.unite}</span>` : ""}${c.fleche}</div>
+      ${c.part == null ? "" :
+        `<div class="mini"><i style="width:${Math.max(2, Math.min(100, c.part * 100))}%"></i></div>`}
+    </div>`).join("");
+
+  $("#b-indicateurs").querySelectorAll(".ind").forEach((n) => {
+    const c = cellules[+n.dataset.i];
+    n.addEventListener("pointermove", (ev) => infobulle(`<b>${c.cle}</b><br>${c.aide}`, ev));
+    n.addEventListener("pointerleave", cacherInfobulle);
+  });
 }
 
 function couleurJauge(v) {
