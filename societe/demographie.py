@@ -28,11 +28,37 @@ MORTALITE_BASE = 0.00055         # risque annuel de référence à 30 ans
 MORTALITE_PENTE = 0.082          # croissance exponentielle avec l'âge
 MORTALITE_PETITE_ENFANCE = 0.075  # risque annuel avant 2 ans, sans rien
 
-PRENOMS_F = ["Ana", "Iris", "Mila", "Kaya", "Zoé", "Lina", "Alba", "Maya", "Nour",
-             "Sol", "Naé", "Elsa", "Rima", "Jade", "Livia", "Sana", "Enora", "Talia"]
-PRENOMS_H = ["Tomas", "Noa", "Lior", "Sacha", "Yann", "Ilan", "Ewen", "Basile",
-             "Théo", "Ruben", "Milo", "Aris", "Joan", "Nils", "Elio", "Samir", "Ivo"]
+# Registre de noms d'inspiration éthiopienne : prénoms courants et noms de lieux.
+PRENOMS_F = [
+    "Abeba", "Alem", "Almaz", "Aster", "Ayana", "Azeb", "Birtukan", "Desta", "Edna",
+    "Fanta", "Gelila", "Hana", "Hirut", "Kidist", "Lensa", "Makeda", "Marta", "Meron",
+    "Mulu", "Nardos", "Rahel", "Saba", "Selam", "Semira", "Senait", "Tigist", "Tirhas",
+    "Wubet", "Yodit", "Zala", "Zewditu", "Adwa", "Abeeba", "Lalibela", "Sheba",
+]
+PRENOMS_H = [
+    "Abel", "Abera", "Addis", "Amanuel", "Ayele", "Bekele", "Berhanu", "Chala", "Dawit",
+    "Endale", "Fikru", "Gebre", "Girma", "Haile", "Kebede", "Lemma", "Mekonnen", "Mulugeta",
+    "Nahom", "Robel", "Samson", "Solomon", "Tadesse", "Tesfaye", "Tewodros", "Workneh",
+    "Yared", "Yohannes", "Zeleke", "Afar", "Ameesh", "Gonder", "Harar", "Shewa",
+]
 
+# D'où viennent celles et ceux qui arrivent — piochées au hasard.
+ARRIVEES = [
+    "a marché trois semaines pour arriver ici",
+    "a suivi la rivière jusqu'à voir de la fumée",
+    "a débarqué avec une caisse d'outils et rien d'autre",
+    "a entendu parler du lieu par des voyageurs",
+    "cherchait une terre où l'on ne doit rien à personne",
+    "a quitté la ville sans prévenir personne",
+    "connaît les plantes et les saisons mieux que quiconque",
+    "a passé l'hiver ici, puis n'est jamais reparti",
+    "a traversé les hauts plateaux à pied",
+    "ne dit pas d'où elle ou il vient",
+    "vient d'un village qui n'avait plus d'eau",
+    "a promis de ne rester qu'une saison",
+    "voulait apprendre à bâtir de ses mains",
+    "a frappé à la porte un soir de tempête",
+]
 
 def passer_le_jour(etat: Etat, alea: random.Random) -> None:
     """Toute la démographie d'une journée, dans l'ordre de la vie."""
@@ -148,7 +174,7 @@ def _porter(etat: Etat, alea: random.Random) -> None:
             _accoucher(etat, mere, alea)
 
 
-def _prenom_libre(etat: Etat, sexe: str, alea: random.Random) -> str:
+def prenom_libre(etat: Etat, sexe: str, alea: random.Random) -> str:
     pris = {p.nom for p in etat.personnes}
     pool = [n for n in (PRENOMS_F if sexe == "f" else PRENOMS_H) if n not in pris]
     if pool:
@@ -175,7 +201,7 @@ def _accoucher(etat: Etat, mere: Personne, alea: random.Random) -> None:
 
     enfant = Personne(
         id=etat.prochain_id_personne,
-        nom=_prenom_libre(etat, sexe, alea),
+        nom=prenom_libre(etat, sexe, alea),
         age=0,
         arrivee=etat.jour,
         competences={c: 0.0 for c in COMPETENCES},

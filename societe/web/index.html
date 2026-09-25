@@ -59,7 +59,17 @@
       <h2>Habitants <span id="p-compte" class="pastille-compte">0</span></h2>
       <p class="sous">Chacun ne fait qu'une chose par jour. C'est là que tout se joue.</p>
       <div id="p-liste" class="personnes"></div>
-      <button id="p-ajouter" class="primaire large">＋ Faire venir quelqu'un</button>
+      <div class="arrivees">
+        <div class="titre-arrivee">Faire venir <span class="sous-inline">nom, âge, sexe et savoir-faire tirés au sort</span></div>
+        <div class="boutons-arrivee">
+          <button class="primaire" data-venir="1">+1</button>
+          <button class="primaire" data-venir="2">+2</button>
+          <button class="primaire" data-venir="5">+5</button>
+          <button class="primaire" data-venir="10">+10</button>
+          <button id="p-venir-n" title="un nombre au choix">+…</button>
+        </div>
+        <button id="p-ajouter" class="discret large">Choisir précisément qui arrive</button>
+      </div>
       <p class="note" id="p-note"></p>
     </section>
 
@@ -120,9 +130,10 @@
 <dialog id="modale-personne">
   <form method="dialog">
     <h2>Quelqu'un arrive</h2>
+    <button type="button" id="n-tirer" class="discret" style="float:right;margin-top:-34px">↻ retirer au sort</button>
     <p class="sous">Une personne de plus, c'est deux bras — et une bouche, un lit,
       et un peu plus de coordination à tenir.</p>
-    <div class="champ"><label for="n-nom">Nom</label><input id="n-nom" maxlength="24"></div>
+    <div class="champ"><label for="n-nom">Nom</label><input id="n-nom" maxlength="24" placeholder="laissé vide : tiré du registre"></div>
     <div class="deux">
       <div class="champ"><label for="n-age">Âge</label>
         <input id="n-age" type="number" value="28" min="1" max="90"></div>

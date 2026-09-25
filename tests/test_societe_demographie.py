@@ -171,3 +171,50 @@ def test_une_seule_personne_ne_part_jamais():
     e = moteur.creer_societe("Ana", 30)
     e.personnes[0].moral = 0
     assert not moteur._veut_partir(e, e.personnes[0], random.Random(0))
+
+
+def test_faire_venir_plusieurs_personnes():
+    e = moteur.creer_societe("Abeba", 28)
+    venus = moteur.faire_venir(e, 10)
+    assert len(venus) == 10 and e.population == 11
+    assert len({p.nom for p in e.personnes}) == 11  # aucun doublon de nom
+    assert all(p.arrivee == e.jour for p in venus)
+    assert any("10 personnes" in j["texte"] for j in e.journal.entrees)
+
+
+def test_faire_venir_tire_au_hasard():
+    e = moteur.creer_societe("Abeba", 28)
+    venus = moteur.faire_venir(e, 30)
+    assert len({p.sexe for p in venus}) == 2
+    assert len({p.competence_principale for p in venus}) >= 5
+    assert len({p.age for p in venus}) >= 10
+    assert all(1 <= p.age <= 66 for p in venus)
+
+
+def test_les_prenoms_viennent_du_registre():
+    e = moteur.creer_societe("Abeba", 28)
+    registre = set(demographie.PRENOMS_F) | set(demographie.PRENOMS_H)
+    for p in moteur.faire_venir(e, 20):
+        assert p.nom in registre, p.nom
+
+
+def test_prenom_libre_ne_repete_pas():
+    e = moteur.creer_societe("Abeba", 28)
+    # on épuise le registre : les noms restent uniques
+    moteur.faire_venir(e, 50)
+    moteur.faire_venir(e, 30)
+    assert len({p.nom for p in e.personnes}) == e.population
+
+
+def test_nombre_d_arrivees_borne():
+    e = moteur.creer_societe("Abeba", 28)
+    for mauvais in (0, -3, 51):
+        with pytest.raises(ValueError, match="entre 1 et 50"):
+            moteur.faire_venir(e, mauvais)
+
+
+def test_les_arrivants_mineurs_n_ont_pas_de_tache():
+    e = moteur.creer_societe("Abeba", 28)
+    for p in moteur.faire_venir(e, 40):
+        if p.age < AGE_TRAVAIL:
+            assert p.tache == "repos"

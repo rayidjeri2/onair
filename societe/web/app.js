@@ -120,9 +120,15 @@ function rendrePersonnes() {
   });
 
   const cap = S.apercu.capacite_gouvernance;
-  $("#p-note").textContent = e.personnes.length > cap
+  const places = S.apercu.abri - e.personnes.length;
+  const notes = [];
+  notes.push(e.personnes.length > cap
     ? `Au-delà de ${cap} personnes, la coordination se perd : il faut des lieux et des règles communes.`
-    : `Coordination tenable jusqu'à ${cap} personnes (${e.gouvernance}).`;
+    : `Coordination tenable jusqu'à ${cap} personnes (${e.gouvernance}).`);
+  notes.push(places > 0 ? `${places} place${places > 1 ? "s" : ""} libre${places > 1 ? "s" : ""} à l'abri.`
+    : `Plus une place à l'abri : chaque arrivée dégrade la santé et le moral.`);
+  notes.push(`${nb(S.apercu.autonomie_nourriture_jours, 1)} jours de vivres d'avance.`);
+  $("#p-note").textContent = notes.join(" ");
 }
 
 const COULEUR_PARCELLE = {
@@ -424,12 +430,35 @@ $("#a-charger").onclick = async () => {
   if (nom) await api("/api/charger", { nom });
 };
 
+/* --- arrivées rapides --- */
+document.querySelectorAll("[data-venir]").forEach((b) => {
+  b.onclick = () => api("/api/personnes", { nombre: +b.dataset.venir });
+});
+$("#p-venir-n").onclick = () => {
+  const n = prompt("Combien de personnes arrivent ? (1 à 50)", "20");
+  if (n) api("/api/personnes", { nombre: Math.max(1, Math.min(50, +n || 1)) });
+};
+
 /* --- modale d'arrivée --- */
 const modale = $("#modale-personne");
+const COMPETENCES_UI = () => S.referentiel.competences;
+function tirerAuSort() {
+  const au = (liste) => liste[Math.floor(Math.random() * liste.length)];
+  $("#n-sexe").value = Math.random() < 0.5 ? "f" : "h";
+  const r = Math.random();
+  $("#n-age").value = r < 0.58 ? 18 + Math.floor(Math.random() * 18)
+    : r < 0.8 ? 36 + Math.floor(Math.random() * 15)
+    : r < 0.92 ? 8 + Math.floor(Math.random() * 10)
+    : 51 + Math.floor(Math.random() * 16);
+  $("#n-specialite").value = au(COMPETENCES_UI());
+  $("#n-nom").value = "";          // laissé vide : le serveur pioche dans le registre
+  $("#n-histoire").value = "";
+}
+$("#n-tirer").onclick = tirerAuSort;
 $("#p-ajouter").onclick = () => {
   const sel = $("#n-specialite");
   sel.innerHTML = S.referentiel.competences.map((c) => `<option value="${c}">${c}</option>`).join("");
-  $("#n-nom").value = "";
+  tirerAuSort();
   const cap = S.apercu.capacite_gouvernance, pop = S.etat.personnes.length;
   const vivres = S.apercu.autonomie_nourriture_jours;
   const avis = [];

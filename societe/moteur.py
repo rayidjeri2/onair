@@ -45,12 +45,6 @@ SAISON_SOLEIL = {"printemps": 1.0, "été": 1.3, "automne": 0.75, "hiver": 0.45}
 SAISON_TEMPERATURE = {"printemps": 14.0, "été": 24.0, "automne": 13.0, "hiver": 4.0}
 SAISON_PLUIE = {"printemps": 0.45, "été": 0.12, "automne": 0.5, "hiver": 0.55}
 
-PRENOMS = [
-    "Ana", "Iris", "Tomas", "Noa", "Lior", "Kaya", "Sacha", "Mila", "Yann", "Zoé",
-    "Ilan", "Nour", "Ewen", "Lina", "Basile", "Maya", "Théo", "Alba", "Ruben", "Sol",
-]
-
-
 # --- création -------------------------------------------------------------
 
 def creer_societe(nom_fondateur: str = "Ana", age: int = 30, graine: int = 1,
@@ -95,7 +89,8 @@ def ajouter_personne(etat: Etat, nom: str, age: int, specialite: str,
         raise ValueError("âge invalide")
     p = Personne(
         id=etat.prochain_id_personne,
-        nom=nom.strip() or random.Random(etat.jour).choice(PRENOMS),
+        nom=nom.strip() or demographie.prenom_libre(
+            etat, sexe, random.Random(etat.graine + etat.jour + etat.prochain_id_personne)),
         age=age,
         arrivee=etat.jour,
         competences={c: 0.12 for c in COMPETENCES},
@@ -120,6 +115,51 @@ def ajouter_personne(etat: Etat, nom: str, age: int, specialite: str,
         "arrivee",
     )
     return p
+
+
+def _age_tire(alea: random.Random) -> int:
+    """Qui arrive dans un lieu pareil : surtout des jeunes adultes, quelques familles."""
+    tirage = alea.random()
+    if tirage < 0.58:
+        return alea.randint(18, 35)
+    if tirage < 0.80:
+        return alea.randint(36, 50)
+    if tirage < 0.92:
+        return alea.randint(8, 17)
+    if tirage < 0.98:
+        return alea.randint(51, 66)
+    return alea.randint(1, 7)
+
+
+def personne_au_hasard(etat: Etat, alea: random.Random | None = None) -> Personne:
+    """Fait venir quelqu'un dont on ne sait rien à l'avance."""
+    alea = alea or random.Random(etat.graine * 7919 + etat.jour * 31 + etat.prochain_id_personne)
+    sexe = "f" if alea.random() < 0.5 else "h"
+    age = _age_tire(alea)
+    specialite = alea.choice(COMPETENCES)
+    return ajouter_personne(
+        etat,
+        nom=demographie.prenom_libre(etat, sexe, alea),
+        age=age,
+        specialite=specialite,
+        histoire=alea.choice(demographie.ARRIVEES) if age >= AGE_TRAVAIL else "",
+        sexe=sexe,
+    )
+
+
+def faire_venir(etat: Etat, nombre: int = 1) -> list[Personne]:
+    """Plusieurs arrivées d'un coup, chacune tirée au hasard."""
+    if not 1 <= nombre <= 50:
+        raise ValueError("on ne fait venir qu'entre 1 et 50 personnes à la fois")
+    alea = random.Random(etat.graine * 104_729 + etat.jour * 97 + etat.prochain_id_personne)
+    venus = [personne_au_hasard(etat, alea) for _ in range(nombre)]
+    if nombre > 1:
+        etat.journal.noter(
+            etat.jour,
+            f"{nombre} personnes s'installent d'un coup : "
+            f"{', '.join(p.nom for p in venus)}. La société compte {etat.population} personnes.",
+            "arrivee")
+    return venus
 
 
 def affecter(etat: Etat, id_personne: int, tache: str) -> None:

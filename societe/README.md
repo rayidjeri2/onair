@@ -25,7 +25,7 @@ standard de Python (≥ 3.11).
 | Levier | Effet |
 |---|---|
 | **Le temps** | il n'avance que si vous le demandez (+1, +7, +30 jours, ou en continu) |
-| **Les arrivées** | nom, âge, sexe, savoir-faire, histoire — à vous de choisir le moment |
+| **Les arrivées** | boutons +1, +2, +5, +10 ou un nombre libre : nom, âge, sexe et savoir-faire tirés au sort ; ou la fiche détaillée si vous voulez choisir |
 | **Le désir d'enfants** | un curseur, de « aucun enfant voulu » à « autant que le lieu peut en porter » |
 | **Les affectations** | chacun ne fait qu'**une** chose par jour : cultiver, bûcheronner, bâtir, soigner, enseigner, coordonner… |
 | **Les chantiers** | un seul à la fois, à choisir dans un catalogue de 34 constructions |
@@ -48,6 +48,12 @@ standard de Python (≥ 3.11).
 
 Les arrivées restent votre décision, mais elles ne sont plus la seule source de
 population.
+
+**Les noms** sont tirés d'un registre d'inspiration éthiopienne (Abeba, Adwa, Lalibela,
+Tadesse, Yohannes, Harar…), utilisé aussi bien pour les arrivées que pour les
+naissances, sans jamais de doublon dans le lieu. L'âge suit une distribution
+plausible pour ce genre d'endroit : surtout de jeunes adultes, quelques familles
+avec enfants, rarement des anciens.
 
 **Les couples** se forment entre adultes libres d'âges proches, jamais entre
 apparentés, d'autant plus facilement que la cohésion et le moral sont bons.

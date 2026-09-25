@@ -95,3 +95,17 @@ def test_politique_natalite():
     assert d["etat"]["politique"]["natalite"] == 1.0
     with pytest.raises(ValueError, match="politique inconnue"):
         serveur.traiter("/api/politique", {"cle": "guerre", "valeur": 1})
+
+
+def test_arrivee_groupee_par_l_api():
+    serveur.traiter("/api/nouvelle", {"graine": 4})
+    d = serveur.traiter("/api/personnes", {"nombre": 5})
+    assert d["etat"]["derive"]["population"] == 6
+    noms = [p["nom"] for p in d["etat"]["personnes"]]
+    assert len(set(noms)) == 6
+
+
+def test_arrivee_groupee_refuse_un_nombre_absurde():
+    serveur.traiter("/api/nouvelle", {})
+    with pytest.raises(ValueError, match="entre 1 et 50"):
+        serveur.traiter("/api/personnes", {"nombre": 500})

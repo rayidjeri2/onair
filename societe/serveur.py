@@ -77,6 +77,8 @@ def traiter(chemin: str, corps: dict[str, Any]) -> dict[str, Any]:
                 histoire=str(corps.get("histoire", "")),
                 sexe=str(corps.get("sexe", "f")),
             )
+        elif chemin == "/api/personnes":
+            moteur.faire_venir(etat, int(corps.get("nombre", 1)))
         elif chemin == "/api/affectation":
             moteur.affecter(etat, int(corps["id"]), str(corps["tache"]))
         elif chemin == "/api/affectations":
