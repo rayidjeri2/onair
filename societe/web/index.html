@@ -25,12 +25,21 @@
         <input id="a-age" type="number" value="30" min="16" max="70"></div>
       <div class="champ"><label for="a-sexe">Sexe</label>
         <select id="a-sexe"><option value="f">femme</option><option value="h">homme</option></select></div>
-      <div class="champ"><label for="a-graine">Graine du hasard</label>
-        <input id="a-graine" type="number" value="1" min="1"></div>
+      <div class="champ">
+        <label for="a-graine">Graine du hasard</label>
+        <div class="ligne-graine">
+          <input id="a-graine" type="number" value="1" min="1">
+          <button type="button" id="a-degraine" title="tirer une graine au hasard">🎲</button>
+        </div>
+      </div>
     </div>
+    <p class="note aide-graine">La graine fixe tous les tirages de la partie : météo, événements,
+      arrivants, naissances, décès. Deux parties de même graine se déroulent à l'identique —
+      c'est ce qui permet de comparer l'effet d'une seule de vos interventions.</p>
     <button id="a-commencer" class="primaire grand">Poser le premier sac</button>
     <button id="a-charger" class="discret">Reprendre une partie sauvegardée</button>
-    <p class="note">Le temps n'avance que lorsque vous le décidez.</p>
+    <p class="note">Le temps tournera tout seul et l'intendance gérera le quotidien :
+      à vous d'intervenir sur la société et d'observer ce qui s'ensuit.</p>
   </div>
 </section>
 

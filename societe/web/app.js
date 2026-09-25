@@ -749,6 +749,9 @@ $("#a-commencer").onclick = async () => {
   await api("/api/intendance", { actif: true });   // le quotidien se gère tout seul
   vitesse = 1; battre();                            // et le temps se met à tourner
 };
+$("#a-degraine").onclick = () => {
+  $("#a-graine").value = Math.floor(Math.random() * 99999) + 1;
+};
 $("#a-charger").onclick = async () => {
   const nom = prompt("Nom de la sauvegarde à reprendre", "partie");
   if (nom) await api("/api/charger", { nom });
