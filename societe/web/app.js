@@ -335,16 +335,115 @@ function rendreCatalogue() {
   });
 }
 
+const GROUPES_RESSOURCES = [
+  {
+    titre: "Subsistance", couleur: "var(--s3)",
+    ressources: {
+      nourriture: {
+        libelle: "Nourriture",
+        role: "cultures et cueillette",
+        aide: "Une portion par personne et par jour, moins pour les enfants. " +
+              "Ce qui dépasse la capacité de conservation est perdu : caves et hangars l'augmentent.",
+      },
+      eau: {
+        libelle: "Eau",
+        role: "source, puits, pluie",
+        aide: "50 litres par adulte et par jour. Le débit compte plus que le stock : " +
+              "un puits ajoute 320 litres par jour, la source 300.",
+      },
+    },
+  },
+  {
+    titre: "Matériaux bruts", couleur: "var(--s2)",
+    ressources: {
+      bois: { libelle: "Bois", role: "bûcheronnage en forêt",
+        aide: "Chauffe l'hiver et alimente l'atelier, qui le transforme en planches." },
+      pierre: { libelle: "Pierre", role: "extraction",
+        aide: "Fondations, four, forge, réservoirs, chemin." },
+      terre: { libelle: "Terre", role: "avec la pierre",
+        aide: "Murs en terre crue, poêles de masse, retenue d'eau." },
+      recup: { libelle: "Récupération", role: "chemin, recyclerie",
+        aide: "Métal, plastique, verre ramassés ou refondus. " +
+              "C'est la matière première de l'énergie solaire et de l'éolienne." },
+    },
+  },
+  {
+    titre: "Transformé", couleur: "var(--s1)",
+    ressources: {
+      planches: { libelle: "Planches", role: "atelier, scierie",
+        aide: "Un stère donne trois mètres carrés de planches, deux fois plus avec la scierie." },
+      outils: { libelle: "Outils", role: "atelier, forge",
+        aide: "Accélèrent tous les chantiers, jusqu'à 30 % de mieux." },
+      compost: { libelle: "Compost", role: "toilettes sèches",
+        aide: "Ferme le cycle des nutriments et remonte le rendement des cultures." },
+      electricite: { libelle: "Électricité", role: "solaire, éolienne",
+        aide: "Se perd si elle n'est pas stockée : les batteries fixent la capacité." },
+    },
+  },
+];
+
 function rendreRessources() {
-  const s = S.etat.stocks, u = S.referentiel.ressources, a = S.apercu;
-  const plafond = { eau: a.eau_max, electricite: a.elec_max };
-  $("#r-liste").innerHTML = Object.entries(s).map(([k, v]) => {
-    const max = plafond[k];
-    const part = max ? Math.min(100, (v / max) * 100) : null;
-    return `<div class="ressource ${v <= 0 ? "vide-stock" : ""}"><span>${k}${part !== null
-      ? ` <span class="u">${Math.round(part)} % de ${nb(max)}</span>` : ""}</span>
-      <span class="q">${nb(v, v < 10 ? 1 : 0)} <span class="u">${u[k]}</span></span></div>`;
-  }).join("");
+  const e = S.etat, u = S.referentiel.ressources, a = S.apercu;
+  const caps = a.capacites || {};
+  const flux = a.flux || {};
+  const morceaux = [];
+  const aides = [];
+
+  for (const groupe of GROUPES_RESSOURCES) {
+    morceaux.push(`<div class="groupe-res">
+      <span class="pastille-res" style="background:${groupe.couleur}"></span>${groupe.titre}</div>`);
+    for (const [cle, info] of Object.entries(groupe.ressources)) {
+      const v = e.stocks[cle] ?? 0;
+      const cap = caps[cle] || 0;
+      const part = cap ? Math.min(1, v / cap) : null;
+      const f = flux[cle] ?? 0;
+      // une ressource qu'on n'a pas encore les moyens de produire reste discrète
+      const inactive = v <= 0 && !cap && Math.abs(f) < 0.05;
+      const classe = inactive ? "inactif"
+        : v <= 0 ? "epuise" : (part !== null && part >= 0.98 ? "pleine" : "");
+      const signe = f > 0.05 ? "monte" : (f < -0.05 ? "baisse" : "");
+      const fluxTexte = Math.abs(f) < 0.05 ? "—"
+        : `${f > 0 ? "+" : "−"}${nb(Math.abs(f), Math.abs(f) < 10 ? 1 : 0)}/j`;
+      aides.push({ cle, info, v, cap, f, unite: u[cle] });
+      morceaux.push(`<div class="ressource ${classe}" data-res="${cle}">
+        <span class="nom">${info.libelle}<small>${info.role}</small></span>
+        <span class="q">${nb(v, v < 10 && v > 0 ? 1 : 0)}<span class="u">${u[cle]}</span></span>
+        <span class="flux ${signe}">${fluxTexte}</span>
+        ${part === null ? "" :
+          `<span class="cap"><i class="${part < 0.8 && part > 0.05 ? "bon" : ""}"
+            style="width:${Math.max(2, part * 100)}%"></i></span>`}
+      </div>`);
+    }
+  }
+  $("#r-liste").innerHTML = morceaux.join("");
+
+  $("#r-liste").querySelectorAll(".ressource").forEach((n) => {
+    const d = aides.find((x) => x.cle === n.dataset.res);
+    n.addEventListener("pointermove", (ev) => {
+      const lignes = [`<b>${d.info.libelle}</b>`, d.info.aide];
+      if (d.cap) lignes.push(`Capacité : ${nb(d.v)} / ${nb(d.cap)} ${d.unite}.`);
+      if (Math.abs(d.f) >= 0.05) {
+        lignes.push(d.f > 0
+          ? `Gagne ${nb(d.f, 1)} ${d.unite} par jour au rythme actuel.`
+          : `Perd ${nb(-d.f, 1)} ${d.unite} par jour : tiendra ${nb(d.v / -d.f, 1)} jours.`);
+      }
+      infobulle(lignes.join("<br>"), ev);
+    });
+    n.addEventListener("pointerleave", cacherInfobulle);
+  });
+
+  // ce qui bloque le prochain chantier
+  const bloques = S.chantiers.filter((c) => !c.bloque && Object.keys(c.manquants).length);
+  const manques = {};
+  for (const c of bloques) {
+    for (const [r, q] of Object.entries(c.manquants)) {
+      manques[r] = Math.min(manques[r] ?? Infinity, q);
+    }
+  }
+  const liste = Object.entries(manques).sort((a, b) => a[1] - b[1]).slice(0, 3);
+  $("#r-manquants").textContent = liste.length
+    ? `Il manque ${liste.map(([r, q]) => `${nb(q, 1)} ${r}`).join(", ")} pour ouvrir d'autres chantiers.`
+    : "";
 }
 
 function courbe(svg, points, couleur, min, max) {

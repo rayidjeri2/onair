@@ -226,6 +226,7 @@ def avancer(etat: Etat, jours: int = 1) -> Etat:
 
 def _un_jour(etat: Etat) -> None:
     etat.jour += 1
+    avant = dict(etat.stocks)
     alea = random.Random(etat.graine * 1_000_003 + etat.jour)
     _mettre_a_jour_meteo(etat, alea)
 
@@ -240,6 +241,7 @@ def _un_jour(etat: Etat) -> None:
     _alerter(etat)
     _evenement(etat, alea)
     _verifier_fin(etat)
+    etat.flux = {c: round(etat.stocks[c] - avant.get(c, 0.0), 2) for c in etat.stocks}
     _enregistrer_historique(etat)
 
 
@@ -348,9 +350,15 @@ def _produire(etat: Etat, travail: dict[str, float], alea: random.Random) -> Non
     s["electricite"] = min(elec_max, s["electricite"] + production_elec)
 
     # --- ce qu'on ne peut ni ranger ni entretenir finit par se perdre
-    s["outils"] = min(s["outils"], 3.0 + 2.0 * etat.population)
-    s["recup"] = min(s["recup"], 200.0 + 60.0 * etat.population
-                     + effet_total(etat, "stock_max"))
+    plafonds = capacites(etat)
+    for ressource in ("outils", "recup", "bois", "planches", "pierre", "terre", "compost"):
+        plafond = plafonds.get(ressource)
+        if plafond and s[ressource] > plafond:
+            if s[ressource] > plafond * 1.05:
+                _dire_une_fois(etat, f"deborde_{ressource}", 60,
+                               f"Le stock de {ressource} déborde : ce qui reste dehors se perd. "
+                               "Un hangar ou une cave y remédierait.")
+            s[ressource] = plafond
 
     # --- pertes : ce qui dépasse la capacité de conservation est perdu
     conservation = min(0.8, effet_total(etat, "conservation"))
@@ -641,6 +649,28 @@ def capacite_grenier(etat: Etat) -> float:
             + effet_total(etat, "stock_max"))
 
 
+def capacites(etat: Etat) -> dict[str, float]:
+    """Plafonds de stockage, ressource par ressource.
+
+    Ce qui dort dehors pourrit ou se disperse : les hangars et les caves
+    (effet « stock_max ») repoussent ces plafonds.
+    """
+    n = etat.population
+    abrite = effet_total(etat, "stock_max")
+    return {
+        "nourriture": capacite_grenier(etat),
+        "eau": EAU_BASE_MAX + effet_total(etat, "eau_max"),
+        "electricite": effet_total(etat, "elec_max"),
+        "outils": 3.0 + 2.0 * n,
+        "recup": 200.0 + 60.0 * n + abrite,
+        "bois": 40.0 + 12.0 * n + abrite / 4,
+        "planches": 60.0 + 25.0 * n + abrite / 2,
+        "pierre": 30.0 + 10.0 * n + abrite / 8,
+        "terre": 60.0 + 20.0 * n + abrite / 8,
+        "compost": 20.0 + 8.0 * n,
+    }
+
+
 def eau_apport_jour(etat: Etat) -> float:
     """Ce qui rentre chaque jour sans aller le chercher : ruisseau, source, captage."""
     return EAU_NATURELLE + effet_total(etat, "eau_jour")
@@ -661,6 +691,8 @@ def apercu(etat: Etat) -> dict[str, Any]:
         "eau_besoin_jour": round(eau_besoin_jour(etat)),
         "eau_deficit": round(eau_besoin_jour(etat) - eau_apport_jour(etat)),
         "grenier": round(capacite_grenier(etat)),
+        "capacites": {c: round(v) for c, v in capacites(etat).items()},
+        "flux": etat.flux,
         "abri": effet_total(etat, "abri"),
         "confort": effet_total(etat, "confort"),
         "capacite_gouvernance": CAPACITE_GOUVERNANCE_BASE + effet_total(etat, "gouvernance"),

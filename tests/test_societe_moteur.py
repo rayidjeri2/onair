@@ -166,3 +166,45 @@ def test_disponibles_signale_les_blocages():
     assert par_cle["scierie"]["bloque"]
     assert par_cle["conseil"]["bloque"]
     assert "campement" not in par_cle  # déjà monté au départ, non répétable
+
+
+def test_flux_du_jour_expose():
+    e = societe()
+    moteur.affecter(e, 1, "bois")
+    moteur.avancer(e, 3)
+    assert e.flux["bois"] > 0
+    assert e.flux["nourriture"] < 0  # on mange sans produire
+    assert set(e.flux) == set(e.stocks)
+
+
+def test_capacites_grandissent_avec_le_groupe_et_les_hangars():
+    e = societe()
+    petites = moteur.capacites(e)
+    for i in range(6):
+        moteur.ajouter_personne(e, f"P{i}", 30, "agriculture")
+    moyennes = moteur.capacites(e)
+    assert moyennes["nourriture"] > petites["nourriture"]
+    assert moyennes["bois"] > petites["bois"]
+    e.batiments["hangar"] = 2
+    grandes = moteur.capacites(e)
+    assert grandes["planches"] > moyennes["planches"]
+
+
+def test_les_stocks_ne_depassent_pas_leur_capacite():
+    e = societe()
+    for ressource in ("bois", "planches", "pierre", "terre", "compost", "recup", "outils"):
+        e.stocks[ressource] = 10_000
+    moteur.avancer(e, 1)
+    plafonds = moteur.capacites(e)
+    for ressource, plafond in plafonds.items():
+        if plafond:
+            assert e.stocks[ressource] <= plafond + 1e-6, ressource
+    assert any("déborde" in j["texte"] for j in e.journal.entrees)
+
+
+def test_apercu_porte_flux_et_capacites():
+    e = societe()
+    moteur.avancer(e, 2)
+    a = moteur.apercu(e)
+    assert a["flux"] == e.flux
+    assert a["capacites"]["eau"] > 0

@@ -41,6 +41,9 @@ standard de Python (≥ 3.11).
   commune, puis le conseil, repoussent ce plafond. C'est le cœur du jeu : **faire venir
   du monde n'est pas gratuit**.
 - **La maturation** : un verger planté aujourd'hui ne nourrit personne avant trois ans.
+- **Les capacités de stockage** : ce qui dort dehors pourrit ou se disperse. Chaque
+  ressource a un plafond qui dépend de la population et des hangars, caves et
+  réservoirs construits — au-delà, le surplus est perdu.
 - **La démographie** (voir ci-dessous) : la population grandit toute seule, une fois
   qu'il y a de quoi nourrir et loger des enfants.
 

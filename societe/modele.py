@@ -262,6 +262,7 @@ class Etat:
         "naissances": 0, "deces": 0, "ages_au_deces": 0.0, "couples_formes": 0,
     })
     alertes: dict[str, int] = field(default_factory=dict)
+    flux: dict[str, float] = field(default_factory=dict)
     termine: str | None = None
 
     # -- calendrier -------------------------------------------------------
