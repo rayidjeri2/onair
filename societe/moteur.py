@@ -9,7 +9,7 @@ from __future__ import annotations
 import random
 from typing import Any
 
-from . import demographie, intendance
+from . import demographie, intendance, metiers, savoirs
 from .catalogue import MODELES, effet_total
 from .modele import (
     AGE_TRAVAIL,
@@ -25,7 +25,8 @@ from .modele import (
 # --- constantes de calibrage ---------------------------------------------
 BESOIN_NOURRITURE = 1.0       # portions par personne et par jour
 BESOIN_EAU = 50.0             # litres par personne et par jour
-EAU_BASE_MAX = 400.0          # ce qu'on peut stocker sans réservoir
+EAU_BASE_MAX = 400.0          # réserve commune, sans réservoir
+EAU_PAR_PERSONNE = 60.0       # ce que chaque foyer garde en jarres
 EAU_NATURELLE = 150.0         # le ruisseau : de quoi tenir à deux ou trois, pas plus
 STOCK_NOURRITURE_BASE = 120.0  # réserve commune minimale
 STOCK_PAR_PERSONNE = 40.0      # ce que chaque foyer garde chez lui
@@ -95,7 +96,7 @@ def ajouter_personne(etat: Etat, nom: str, age: int, specialite: str,
         age=age,
         arrivee=etat.jour,
         competences={c: 0.12 for c in COMPETENCES},
-        tache="construction" if etat.chantier else "nourriture",
+        tache="construction" if etat.chantiers else "nourriture",
         sexe=sexe if sexe in ("f", "h") else "f",
         anniversaire=etat.jour_annee,
         histoire=histoire,
@@ -174,6 +175,9 @@ def affecter(etat: Etat, id_personne: int, tache: str) -> None:
         raise ValueError("personne inconnue")
     if p.enfant and tache != "repos":
         raise ValueError(f"{p.nom} n'a que {p.age} ans")
+    if p.metier and tache not in (metiers.METIERS[p.metier].tache, "repos"):
+        raise ValueError(
+            f"{p.nom} exerce le métier de {metiers.METIERS[p.metier].nom.lower()}")
     p.tache = tache
 
 
@@ -197,8 +201,11 @@ def regler_politique(etat: Etat, cle: str, valeur: float) -> None:
 
 
 def lancer_chantier(etat: Etat, cle: str) -> Chantier:
-    if etat.chantier is not None:
-        raise ValueError("un chantier est déjà en cours")
+    if len(etat.chantiers) >= etat.chantiers_max:
+        raise ValueError(
+            f"déjà {len(etat.chantiers)} chantiers ouverts : il en faut plus de bras")
+    if etat.chantier_ouvert(cle):
+        raise ValueError("ce chantier est déjà en cours")
     modele = MODELES.get(cle)
     if modele is None:
         raise ValueError(f"chantier inconnu : {cle}")
@@ -214,20 +221,25 @@ def lancer_chantier(etat: Etat, cle: str) -> Chantier:
             raise ValueError(f"matériaux manquants : {ressource}")
     for ressource, quantite in modele.materiaux.items():
         etat.stocks[ressource] -= quantite
-    etat.chantier = Chantier(cle=cle, nom=modele.nom, travail_requis=modele.travail,
-                             materiaux=dict(modele.materiaux), materiaux_livres=True)
+    chantier = Chantier(cle=cle, nom=modele.nom, travail_requis=modele.travail,
+                        materiaux=dict(modele.materiaux), materiaux_livres=True)
+    etat.chantiers.append(chantier)
     etat.journal.noter(etat.jour, f"Chantier ouvert : {modele.nom}.", "chantier")
-    return etat.chantier
+    return chantier
 
 
-def annuler_chantier(etat: Etat) -> None:
-    if etat.chantier is None:
+def annuler_chantier(etat: Etat, cle: str | None = None) -> None:
+    """Abandonne un chantier (le premier ouvert si on n'en nomme aucun)."""
+    if not etat.chantiers:
         return
-    for ressource, quantite in etat.chantier.materiaux.items():
+    chantier = etat.chantier_ouvert(cle) if cle else etat.chantiers[0]
+    if chantier is None:
+        return
+    for ressource, quantite in chantier.materiaux.items():
         etat.stocks[ressource] = etat.stocks.get(ressource, 0.0) + quantite * 0.6
-    etat.journal.noter(etat.jour, f"Chantier abandonné : {etat.chantier.nom}. "
+    etat.chantiers.remove(chantier)
+    etat.journal.noter(etat.jour, f"Chantier abandonné : {chantier.nom}. "
                                   "Une partie des matériaux est récupérée.", "alerte")
-    etat.chantier = None
 
 
 # --- déroulement d'une journée -------------------------------------------
@@ -251,6 +263,7 @@ def _un_jour(etat: Etat) -> None:
     travail = _repartir_travail(etat)
     _produire(etat, travail, alea)
     _avancer_chantier(etat, travail)
+    savoirs.progresser(etat, travail, alea)
     _consommer(etat)
     _mettre_a_jour_personnes(etat, travail, alea)
     demographie.passer_le_jour(etat, alea)
@@ -292,9 +305,15 @@ def _mettre_a_jour_meteo(etat: Etat, alea: random.Random) -> None:
     etat.meteo.description = description
 
 
+def multiplicateur(etat: Etat, nom: str) -> float:
+    """Gain de productivité apporté par l'outillage bâti et les savoirs acquis."""
+    return 1.0 + effet_total(etat, nom) + savoirs.effet_savoirs(etat, nom)
+
+
 def coordination(etat: Etat) -> float:
     """Au-delà de ce que la gouvernance peut tenir, chaque personne coûte."""
-    capacite = CAPACITE_GOUVERNANCE_BASE + effet_total(etat, "gouvernance")
+    capacite = (CAPACITE_GOUVERNANCE_BASE + effet_total(etat, "gouvernance")
+                + savoirs.effet_savoirs(etat, "gouvernance"))
     surcharge = max(0.0, etat.population - capacite)
     # la perte sature : un gros dépassement fait mal sans être immédiatement fatal
     penalite = 0.085 * surcharge ** 0.75
@@ -322,15 +341,18 @@ def _produire(etat: Etat, travail: dict[str, float], alea: random.Random) -> Non
     saison = etat.saison
 
     # --- eau
-    eau_max = EAU_BASE_MAX + effet_total(etat, "eau_max")
+    eau_max = capacites(etat)["eau"]
     captage = 1.0 + effet_total(etat, "captage")
     s["eau"] += etat.meteo.pluie * 12.0 * captage
     s["eau"] += EAU_NATURELLE + effet_total(etat, "eau_jour")
-    s["eau"] += travail["eau"] * EAU_PORTEE_PAR_JOUR_HOMME
+    s["eau"] += (travail["eau"] * EAU_PORTEE_PAR_JOUR_HOMME
+                 * multiplicateur(etat, "rendement_eau"))
     s["eau"] = min(eau_max, s["eau"])
 
     # --- nourriture
-    rendement = (1.0 + effet_total(etat, "rendement")) * etat.climat.get("fertilite", 1.0)
+    rendement = ((1.0 + effet_total(etat, "rendement"))
+                 * etat.climat.get("fertilite", 1.0)
+                 * multiplicateur(etat, "rendement_agricole"))
     saisonnier = SAISON_RENDEMENT[saison]
     if saison == "hiver":
         saisonnier = max(0.02, saisonnier / max(0.2, etat.climat.get("durete_hiver", 1.0)))
@@ -345,7 +367,8 @@ def _produire(etat: Etat, travail: dict[str, float], alea: random.Random) -> Non
     # cueillette et chasse : ce qu'on tire du terrain sans l'avoir aménagé
     sauvage = min(1.0, (etat.territoire.surface("foret") + etat.territoire.surface("friche"))
                   / max(1.0, etat.population * 6))
-    cueillette = travail["nourriture"] * CUEILLETTE_PAR_JOUR_HOMME * saisonnier * sauvage
+    cueillette = (travail["nourriture"] * CUEILLETTE_PAR_JOUR_HOMME * saisonnier * sauvage
+                  * multiplicateur(etat, "rendement_cueillette"))
     recolte = cultive + cueillette
     passif = effet_total(etat, "nourriture_jour")
     passif += etat.territoire.surface_productive("verger") * 2.2 * saisonnier
@@ -354,18 +377,22 @@ def _produire(etat: Etat, travail: dict[str, float], alea: random.Random) -> Non
     # --- bois, pierre, terre
     foret = etat.territoire.surface("foret")
     dispo_bois = min(1.0, foret / max(1.0, etat.population * 4))
-    s["bois"] += travail["bois"] * BOIS_PAR_JOUR_HOMME * dispo_bois
-    s["pierre"] += travail["pierre"] * PIERRE_PAR_JOUR_HOMME
-    s["terre"] += travail["pierre"] * TERRE_PAR_JOUR_HOMME
+    s["bois"] += (travail["bois"] * BOIS_PAR_JOUR_HOMME * dispo_bois
+                  * multiplicateur(etat, "rendement_bois"))
+    pierre = multiplicateur(etat, "rendement_pierre")
+    s["pierre"] += travail["pierre"] * PIERRE_PAR_JOUR_HOMME * pierre
+    s["terre"] += travail["pierre"] * TERRE_PAR_JOUR_HOMME * pierre
 
     # --- artisanat : le bois devient planches, on fabrique des outils
     ratio = 1.0 + effet_total(etat, "planches_ratio")
-    artisanat = travail["artisanat"] * (1.0 + effet_total(etat, "artisanat"))
+    artisanat = (travail["artisanat"] * (1.0 + effet_total(etat, "artisanat"))
+                 * multiplicateur(etat, "rendement_artisanat"))
     steres = min(s["bois"], artisanat * 0.8)
     s["bois"] -= steres
     s["planches"] += steres * PLANCHES_PAR_STERE * ratio / 2.0
     s["planches"] += effet_total(etat, "planches_jour")
-    s["outils"] += effet_total(etat, "outils_jour") + artisanat * 0.02
+    s["outils"] += ((effet_total(etat, "outils_jour") + artisanat * 0.02)
+                    * multiplicateur(etat, "rendement_outils"))
     s["recup"] += effet_total(etat, "recup_jour") + 0.4
 
     # --- compost et électricité
@@ -387,7 +414,8 @@ def _produire(etat: Etat, travail: dict[str, float], alea: random.Random) -> Non
             s[ressource] = plafond
 
     # --- pertes : ce qui dépasse la capacité de conservation est perdu
-    conservation = min(0.8, effet_total(etat, "conservation"))
+    conservation = min(0.85, effet_total(etat, "conservation")
+                       + savoirs.effet_savoirs(etat, "conservation"))
     s["nourriture"] *= 1.0 - GASPILLAGE_NOURRITURE * (1.0 - conservation)
     grenier = capacite_grenier(etat)
     if s["nourriture"] > grenier:
@@ -402,18 +430,20 @@ def _produire(etat: Etat, travail: dict[str, float], alea: random.Random) -> Non
 
 
 def _avancer_chantier(etat: Etat, travail: dict[str, float]) -> None:
-    if etat.chantier is None:
+    """Les bras se répartissent à parts égales entre les chantiers ouverts."""
+    if not etat.chantiers:
         return
     outils = 1.0 + min(0.3, etat.stocks.get("outils", 0.0) * 0.04)
-    logistique = 1.0 + effet_total(etat, "logistique")
-    etat.chantier.travail_fait += travail["construction"] * outils * logistique
-    if etat.chantier.travail_fait >= etat.chantier.travail_requis:
-        _terminer_chantier(etat)
+    logistique = 1.0 + effet_total(etat, "logistique") + savoirs.effet_savoirs(etat, "logistique")
+    part = (travail["construction"] * outils * logistique
+            * multiplicateur(etat, "rendement_construction") / len(etat.chantiers))
+    for chantier in list(etat.chantiers):
+        chantier.travail_fait += part
+        if chantier.travail_fait >= chantier.travail_requis:
+            _terminer_chantier(etat, chantier)
 
 
-def _terminer_chantier(etat: Etat) -> None:
-    chantier = etat.chantier
-    assert chantier is not None
+def _terminer_chantier(etat: Etat, chantier: Chantier) -> None:
     modele = MODELES[chantier.cle]
     etat.batiments[chantier.cle] = etat.batiment(chantier.cle) + 1
     for effet, valeur in modele.effets.items():
@@ -426,7 +456,7 @@ def _terminer_chantier(etat: Etat) -> None:
         elif effet in etat.stocks:
             etat.stocks[effet] += valeur
     etat.journal.noter(etat.jour, f"{modele.nom} : achevé.", "jalon")
-    etat.chantier = None
+    etat.chantiers.remove(chantier)
 
 
 def _consommer(etat: Etat) -> None:
@@ -439,9 +469,9 @@ def _consommer(etat: Etat) -> None:
     s["nourriture"] = max(0.0, s["nourriture"])
 
     besoin_eau = sum(0.6 if p.enfant else 1.0 for p in etat.personnes) * BESOIN_EAU
-    s["eau"] -= besoin_eau
-    soif = s["eau"] < 0
-    s["eau"] = max(0.0, s["eau"])
+    # la soif est graduelle : boire 90 % de ce qu'il faut n'est pas mourir de soif
+    part_eau = 1.0 if besoin_eau <= 0 else min(1.0, s["eau"] / besoin_eau)
+    s["eau"] = max(0.0, s["eau"] - besoin_eau)
 
     if etat.saison in ("hiver", "automne"):
         economie = 1.0 - min(0.6, effet_total(etat, "isolation") * 0.12
@@ -450,17 +480,18 @@ def _consommer(etat: Etat) -> None:
 
     s["electricite"] = max(0.0, s["electricite"] - population * 0.35)
     etat._ration = ration  # type: ignore[attr-defined]
-    etat._soif = soif  # type: ignore[attr-defined]
+    etat._part_eau = part_eau  # type: ignore[attr-defined]
 
 
 def _mettre_a_jour_personnes(etat: Etat, travail: dict[str, float],
                              alea: random.Random) -> None:
     ration = getattr(etat, "_ration", 1.0)
-    soif = getattr(etat, "_soif", False)
+    part_eau = getattr(etat, "_part_eau", 1.0)
     abri = effet_total(etat, "abri")
-    confort = effet_total(etat, "confort")
-    salubrite = effet_total(etat, "salubrite")
-    soin = travail["soin"] * (1.0 + effet_total(etat, "soin"))
+    confort = effet_total(etat, "confort") + savoirs.effet_savoirs(etat, "confort")
+    salubrite = effet_total(etat, "salubrite") + savoirs.effet_savoirs(etat, "salubrite")
+    soin = travail["soin"] * (1.0 + effet_total(etat, "soin")
+                              + savoirs.effet_savoirs(etat, "soin"))
     enseignement = travail["enseignement"] * (1.0 + effet_total(etat, "enseignement"))
     froid = etat.meteo.temperature < 5 and etat.stocks["bois"] <= 0.5
     # l'abri se partage : la couverture est progressive, pas tout ou rien
@@ -481,7 +512,7 @@ def _mettre_a_jour_personnes(etat: Etat, travail: dict[str, float],
         # santé
         delta = 0.0
         delta += 1.6 if ration >= 1.0 else -7.0 * (1.0 - ration)
-        delta += -6.0 if soif else 0.4
+        delta += 0.4 - 7.0 * (1.0 - part_eau)
         delta += salubrite * 0.12 - 0.6
         delta += -3.0 if froid else 0.0
         delta += min(4.0, soin * 2.5)
@@ -498,7 +529,7 @@ def _mettre_a_jour_personnes(etat: Etat, travail: dict[str, float],
         cible += -9.0 + 15.0 * couverture
         cible += 5.0 if p.energie > 55 else -8.0
         cible += 4.0 if etat.population > 1 else -9.0  # la solitude pèse
-        cible += 3.0 if etat.chantier else -3.0  # avoir un cap commun
+        cible += 3.0 if etat.chantiers else -3.0  # avoir un cap commun
         cible += 4.0 if p.partenaire is not None else 0.0
         cible += min(4.0, 1.5 * sum(1 for e in etat.personnes if e.id in p.enfants))
         p.moral = max(0.0, min(100.0, p.moral + (cible - p.moral) * 0.12))
@@ -508,7 +539,9 @@ def _mettre_a_jour_personnes(etat: Etat, travail: dict[str, float],
             continue
         comp = TACHE_COMPETENCE.get(p.tache)
         if comp:
-            p.competences[comp] = min(1.0, p.competences[comp] + 0.0022 * (1.1 - p.competences[comp]))
+            vitesse = 0.0022 * (2.0 if p.metier else 1.0)
+            p.competences[comp] = min(1.0, p.competences[comp]
+                                      + vitesse * (1.1 - p.competences[comp]))
         if enseignement and etat.population > 1:
             gain = 0.0016 * enseignement / etat.population
             for c in COMPETENCES:
@@ -590,8 +623,8 @@ def _evenement(etat: Etat, alea: random.Random) -> None:
             etat.stocks["eau"] *= 0.35
         elif cle == "tempete":
             etat.stocks["planches"] *= 0.8
-            if etat.chantier:
-                etat.chantier.travail_fait *= 0.75
+            for chantier in etat.chantiers:
+                chantier.travail_fait *= 0.75
         elif cle == "gel":
             etat.stocks["nourriture"] *= 0.7
         elif cle == "maladie":
@@ -685,7 +718,8 @@ def capacites(etat: Etat) -> dict[str, float]:
     abrite = effet_total(etat, "stock_max")
     return {
         "nourriture": capacite_grenier(etat),
-        "eau": EAU_BASE_MAX + effet_total(etat, "eau_max"),
+        "eau": (EAU_BASE_MAX + EAU_PAR_PERSONNE * etat.population
+                + effet_total(etat, "eau_max")),
         "electricite": effet_total(etat, "elec_max"),
         "outils": 3.0 + 2.0 * n,
         "recup": 200.0 + 60.0 * n + abrite,
@@ -723,7 +757,7 @@ def apercu(etat: Etat) -> dict[str, Any]:
         "confort": effet_total(etat, "confort"),
         "capacite_gouvernance": CAPACITE_GOUVERNANCE_BASE + effet_total(etat, "gouvernance"),
         "coordination": round(coordination(etat), 3),
-        "eau_max": EAU_BASE_MAX + effet_total(etat, "eau_max"),
+        "eau_max": capacites(etat)["eau"],
         "elec_max": effet_total(etat, "elec_max"),
         "naissances": etat.demographie["naissances"],
         "deces": etat.demographie["deces"],
@@ -733,6 +767,13 @@ def apercu(etat: Etat) -> dict[str, Any]:
         },
         # rendement de chacun sur chaque tâche : sert à choisir qui redéployer
         "intendance": intendance.resume(etat) if etat.personnes else {},
+        "chantiers_max": etat.chantiers_max,
+        "savoirs": savoirs.resume(etat),
+        "metiers": metiers.resume(etat),
+        "productivite": {
+            nom: round(multiplicateur(etat, f"rendement_{nom}"), 2)
+            for nom in ("agricole", "bois", "pierre", "construction", "artisanat", "eau")
+        },
         "rendements": {
             p.id: {t: round(p.efficacite(t), 3) for t in TACHE_COMPETENCE if t != "repos"}
             for p in etat.personnes if not p.enfant

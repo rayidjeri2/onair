@@ -9,7 +9,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-from . import actions, moteur
+from . import actions, metiers, moteur
 from .catalogue import disponibles
 from .modele import COMPETENCES, RESSOURCES, TACHES, TYPES_PARCELLE, Etat
 
@@ -91,6 +91,8 @@ def traiter(chemin: str, corps: dict[str, Any]) -> dict[str, Any]:
                     moteur.affecter(etat, int(id_personne), str(tache))
                 except ValueError:
                     continue
+        elif chemin == "/api/metier":
+            metiers.attribuer(etat, int(corps["id"]), corps.get("metier") or None)
         elif chemin == "/api/action":
             actions.appliquer(etat, str(corps["cle"]), corps.get("parametres") or {})
         elif chemin == "/api/intendance":

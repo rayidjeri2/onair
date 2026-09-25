@@ -79,6 +79,56 @@ deux fois la même épidémie, avec et sans) ; *quelle est la taille critique ?*
 (scinder le groupe à 40 % et voir s'il se relève) ; *le stockage ou la
 production ?* (ramener les saisons à 30 jours et regarder qui meurt d'abord).
 
+## Les découvertes et l'outillage
+
+Un savoir ne s'achète pas : il se gagne **en faisant**. Cultiver longtemps finit
+par donner l'agronomie, forger donne la métallurgie, porter l'eau donne
+l'hydraulique. La tâche « chercher et expérimenter » accélère la découverte la
+plus avancée — au prix de bras retirés de la production.
+
+17 découvertes en quatre âges :
+
+| Âge | Découvertes | Ce qu'elles ouvrent |
+|---|---|---|
+| **Premiers gestes** | vannerie, agronomie, charpente, hydraulique, art de soigner, écriture | moulin, aqueduc, archives |
+| **Le fer et la roue** | poterie, métallurgie, roue, traction animale | four, haut-fourneau, charrue, brouettes, attelage |
+| **La mécanique** | engrenages, textile, médecine, compter et prévoir | métier à tisser, scierie hydraulique, hôpital |
+| **Industrie naissante** | machine à vapeur, ciment, électricité | atelier mécanisé, réseau électrique |
+
+Chaque âge exige une **société assez grande** : cinq personnes qui survivent
+n'inventent pas la machine à vapeur (25 habitants requis, 30 pour l'électricité).
+
+**Un savoir se perd** si plus personne ne le pratique — sauf si l'écriture est
+connue *et* les archives bâties. C'est la seule protection contre la régression
+technique, et elle demande les deux.
+
+L'outillage qu'ouvrent ces découvertes est ce qui casse le plafond de
+productivité : sans lui, un bûcheron coupe autant de bois à l'an 80 qu'à l'an 1.
+Sur une partie menée par l'intendance, la productivité agricole passe de ×1 à
+**×6,9 en quarante ans** (agronomie, traction, charrue, attelage), l'artisanat à
+×2,75 (engrenages, scierie hydraulique, atelier mécanisé).
+
+## La division du travail
+
+Quatorze **métiers à plein temps** — charpentier, bûcheron, carrier, fontainier,
+cuisinier, soigneur, enseignant, intendant, potier, forgeron, laboureur,
+tisserand, scribe, mécanicien. Chacun exige son atelier bâti (et parfois une
+découverte), rend **1,7 à 2,2 fois** plus efficace sur sa tâche, et apprend deux
+fois plus vite — mais la personne ne fait plus rien d'autre.
+
+Le nombre de métiers est plafonné à **un pour trois adultes** : une société ne
+peut entretenir d'artisans qu'à proportion de son surplus alimentaire. C'est le
+seuil historique du passage du hameau au village, et l'intendance ne nomme un
+artisan que si le grenier tient au moins 25 jours.
+
+## Les chantiers simultanés
+
+Plusieurs chantiers peuvent être ouverts à la fois, dans la limite d'**un par
+trois adultes** (six au maximum). Les bras affectés à « travailler sur le
+chantier » se répartissent à parts égales entre eux. Tant qu'un besoin vital
+n'est pas couvert — eau, toit, champs — l'intendance n'en ouvre qu'un seul :
+disperser l'effort pendant une crise, c'est ne rien finir.
+
 ## L'intendance automatique
 
 Le bouton **Confier** remet la conduite quotidienne à `intendance.py`, qui décide
@@ -181,7 +231,9 @@ plafonne à cinq personnes.
 ```
 societe/
   modele.py      personnes, parcelles, stocks, chantiers — tout est sérialisable
-  actions.py     les 27 interventions du joueur, avec leurs paramètres
+  actions.py     les 30 interventions du joueur, avec leurs paramètres
+  savoirs.py     les 17 découvertes, leur progression et leur oubli
+  metiers.py     les 14 métiers à plein temps
   intendance.py  l'intendance automatique : chantiers et affectations
   catalogue.py   les 34 chantiers : coûts, prérequis, effets
   moteur.py      une journée de simulation ; constantes de calibrage en tête de fichier

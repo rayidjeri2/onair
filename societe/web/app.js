@@ -47,6 +47,7 @@ function rendre() {
   rendrePersonnes();
   rendreLieu();
   rendreChantier();
+  rendreSavoirs();
   rendreActions();
   rendreCatalogue();
   rendreRessources();
@@ -161,6 +162,18 @@ function rendreBarre() {
   });
 }
 
+function choixMetier(p, enfant) {
+  const info = S.apercu.metiers || { possibles: [], places: 0, exerces: 0 };
+  if (enfant || !info.possibles.length) return "";
+  const libre = info.exerces < info.places || p.metier;
+  const options = [`<option value="">sans métier</option>`].concat(
+    info.possibles.map((m) =>
+      `<option value="${m.cle}" ${p.metier === m.cle ? "selected" : ""}>` +
+      `${m.nom} ×${m.bonus}</option>`)).join("");
+  return `<div class="metier-choix"><select data-metier="${p.id}" ${libre ? "" : "disabled"}>` +
+    `${options}</select></div>`;
+}
+
 function couleurJauge(v) {
   return v >= 60 ? "var(--bon)" : v >= 30 ? "var(--attention)" : "var(--grave)";
 }
@@ -193,6 +206,11 @@ function rendrePersonnes() {
     if (vivants.length) etiquettes.push(
       `<span class="etiq">${vivants.length} enfant${vivants.length > 1 ? "s" : ""}</span>`);
     if (p.nee_ici) etiquettes.push(`<span class="etiq">né${p.sexe === "f" ? "e" : ""} ici</span>`);
+    if (p.metier) {
+      const m = (S.apercu.metiers.possibles || []).find((x) => x.cle === p.metier);
+      etiquettes.push(`<span class="etiq metier" title="${m ? m.description : ""}">` +
+        `${m ? m.nom : p.metier}</span>`);
+    }
     if (!enfant && p.polyvalence >= 0.6) etiquettes.push(
       `<span class="etiq polyvalent" title="se débrouille dans presque tous les travaux">polyvalent${p.sexe === "f" ? "e" : ""}</span>`);
     else if (!enfant && p.polyvalence <= 0.22) etiquettes.push(
@@ -205,14 +223,18 @@ function rendrePersonnes() {
       <div class="jauges">${jauge("énergie", p.energie)}${jauge("santé", p.sante)}${jauge("moral", p.moral)}</div>
       ${etiquettes.length ? `<div class="famille">${etiquettes.join("")}</div>` : ""}
       <select data-personne="${p.id}" ${enfant ? "disabled" : ""}>${options}</select>
-      ${p.tache === "construction" && !e.chantier && !e.intendance
+      ${choixMetier(p, enfant)}
+      ${p.tache === "construction" && !e.chantiers.length && !e.intendance
         ? `<div class="avert">aucun chantier ouvert : cette journée est perdue</div>` : ""}
       ${p.histoire ? `<div class="histoire">« ${p.histoire} »</div>` : ""}
     </div>`;
   }).join("") || `<p class="vide">Plus personne ici.</p>`;
 
-  $("#p-liste").querySelectorAll("select").forEach((s) => {
+  $("#p-liste").querySelectorAll("select[data-personne]").forEach((s) => {
     s.onchange = () => api("/api/affectation", { id: +s.dataset.personne, tache: s.value });
+  });
+  $("#p-liste").querySelectorAll("select[data-metier]").forEach((s) => {
+    s.onchange = () => api("/api/metier", { id: +s.dataset.metier, metier: s.value });
   });
 
   rendreIntendance();
@@ -226,6 +248,8 @@ function rendrePersonnes() {
   notes.push(places > 0 ? `${places} place${places > 1 ? "s" : ""} libre${places > 1 ? "s" : ""} à l'abri.`
     : `Plus une place à l'abri : chaque arrivée dégrade la santé et le moral.`);
   notes.push(`${nb(S.apercu.autonomie_nourriture_jours, 1)} jours de vivres d'avance.`);
+  const m = S.apercu.metiers;
+  if (m && m.places) notes.push(`${m.exerces}/${m.places} métier(s) à plein temps.`);
   $("#p-note").textContent = notes.join(" ");
 }
 
@@ -360,20 +384,57 @@ function rendreLieu() {
 }
 
 function rendreChantier() {
-  const c = S.etat.chantier;
+  const liste = S.etat.chantiers || [];
   const bloc = $("#c-chantier");
-  if (!c) {
+  $("#c-compte").textContent = `${liste.length}/${S.apercu.chantiers_max ?? 1}`;
+  if (!liste.length) {
     bloc.innerHTML = `<p class="vide">Aucun chantier en cours. Les personnes affectées à
       « travailler sur le chantier » ne produisent rien tant que vous n'en ouvrez pas un.</p>`;
     return;
   }
-  const reste = Math.max(0, c.travail_requis - c.travail_fait);
-  bloc.innerHTML = `<h3>${c.nom}</h3>
-    <div class="barre-progres"><i style="width:${(c.avancement ?? c.travail_fait / c.travail_requis) * 100}%"></i></div>
-    <p class="sous">${nb(c.travail_fait, 1)} / ${nb(c.travail_requis)} jours-homme —
-      il reste ${nb(reste, 1)}.</p>
-    <button id="c-annuler" class="discret">Abandonner le chantier</button>`;
-  $("#c-annuler").onclick = () => api("/api/annuler-chantier");
+  bloc.innerHTML = liste.map((c) => {
+    const part = c.travail_fait / c.travail_requis;
+    const reste = Math.max(0, c.travail_requis - c.travail_fait);
+    return `<div class="chantier-ligne">
+      <div class="tete"><span class="nom">${c.nom}</span>
+        <span class="reste">${nb(c.travail_fait, 1)} / ${nb(c.travail_requis)} j-h</span></div>
+      <div class="barre-progres"><i style="width:${Math.min(100, part * 100)}%"></i></div>
+      <div class="tete"><span class="reste">il reste ${nb(reste, 1)} jours-homme</span>
+        <button class="discret" data-annuler="${c.cle}">abandonner</button></div>
+    </div>`;
+  }).join("") +
+  (liste.length > 1
+    ? `<p class="note">Les bras se répartissent à parts égales entre les chantiers ouverts.</p>`
+    : "");
+  bloc.querySelectorAll("[data-annuler]").forEach((b) => {
+    b.onclick = () => api("/api/annuler-chantier", { cle: b.dataset.annuler });
+  });
+}
+
+function rendreSavoirs() {
+  const info = S.apercu.savoirs;
+  if (!info) return;
+  const ages = info.ages || {};
+  $("#s-resume").textContent =
+    `${info.acquis.length} découverte(s) acquise(s). ` +
+    (info.memoire
+      ? "L'écriture et les archives les mettent à l'abri de l'oubli."
+      : "Sans écriture ni archives, un savoir que plus personne ne pratique se perd.");
+
+  $("#s-encours").innerHTML = info.en_cours.slice(0, 4).map((s) => `
+    <div class="savoir">
+      <div class="tete"><span class="nom">
+        <span class="age-savoir">${ages[s.age] || s.age}</span>${s.nom}</span>
+        <span class="part">${Math.round(s.part * 100)} %</span></div>
+      <div class="desc">${s.description}</div>
+      <div class="piste"><i style="width:${Math.max(1, s.part * 100)}%;background:var(--s5)"></i></div>
+    </div>`).join("") || `<p class="vide">Rien ne progresse : il faut pratiquer, ou chercher.</p>`;
+
+  $("#s-acquis").innerHTML = info.acquis.map((s) =>
+    `<span class="chip acquis" title="${s.description}">${s.nom}</span>`).join("");
+  $("#s-avenir").innerHTML = info.a_venir.map((s) =>
+    `<span class="chip ferme" title="exige : ${s.exige.join(", ")}">${s.nom}</span>`).join("")
+    || `<span class="chip">plus rien : tout est à portée</span>`;
 }
 
 function rendreCatalogue() {
@@ -512,6 +573,17 @@ function rendreRessources() {
     });
     n.addEventListener("pointerleave", cacherInfobulle);
   });
+
+  // ce que l'outillage et les savoirs ont changé
+  const prod = S.apercu.productivite || {};
+  const gains = Object.entries(prod).filter(([, v]) => v > 1.01)
+    .map(([nom, v]) => `${nom} ×${nb(v, 2)}`);
+  const ligne = document.getElementById("r-productivite");
+  if (ligne) {
+    ligne.textContent = gains.length
+      ? `Productivité gagnée : ${gains.join(", ")}.`
+      : "";
+  }
 
   // ce qui bloque le prochain chantier
   const bloques = S.chantiers.filter((c) => !c.bloque && Object.keys(c.manquants).length);

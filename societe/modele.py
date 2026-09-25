@@ -19,6 +19,7 @@ TACHES = {
     "soin": "Soigner et prendre soin",
     "enseignement": "Transmettre les savoir-faire",
     "organisation": "Coordonner le collectif",
+    "recherche": "Chercher et expérimenter",
     "repos": "Se reposer",
 }
 
@@ -45,6 +46,7 @@ TACHE_COMPETENCE = {
     "soin": "soin",
     "enseignement": "enseignement",
     "organisation": "organisation",
+    "recherche": "enseignement",
     "repos": None,
 }
 
@@ -100,6 +102,7 @@ class Personne:
     autre_parent: int | None = None
     nee_ici: bool = False
     polyvalence: float = 0.35   # aptitude à travailler hors de sa spécialité
+    metier: str = ""            # métier à plein temps, s'il en exerce un
     anniversaire: int = 0         # jour de l'année où l'âge augmente
 
     @property
@@ -175,9 +178,12 @@ class Personne:
         return niveau + self.polyvalence * 0.5 * max(0.0, meilleur - niveau)
 
     def efficacite(self, tache: str) -> float:
-        """Rendement sur une tâche : niveau mobilisable + habitude."""
+        """Rendement sur une tâche : niveau mobilisable, habitude, et métier."""
+        from .metiers import bonus
+
         habitude = min(0.25, self.jours_par_tache.get(tache, 0) / 400)
-        return 0.35 + 1.3 * self.niveau_effectif(tache) + habitude
+        base = 0.35 + 1.3 * self.niveau_effectif(tache) + habitude
+        return base * bonus(self, tache)
 
 
 @dataclass
@@ -262,8 +268,9 @@ class Etat:
     prochain_id_personne: int = 1
     stocks: dict[str, float] = field(default_factory=lambda: {r: 0.0 for r in RESSOURCES})
     batiments: dict[str, int] = field(default_factory=dict)
-    chantier: Chantier | None = None
-    savoirs: dict[str, float] = field(default_factory=dict)
+    chantiers: list[Chantier] = field(default_factory=list)
+    savoirs: dict[str, float] = field(default_factory=dict)   # points de progression
+    decouvertes: list[str] = field(default_factory=list)      # savoirs acquis
     cohesion: float = 1.0
     gouvernance: str = "fondateur"
     meteo: Meteo = field(default_factory=Meteo)
@@ -350,6 +357,19 @@ class Etat:
             t[p.sexe if p.sexe in t else "f"] += 1
         return [{"de": cle, "a": cle + pas - 1, **t} for cle, t in sorted(tranches.items())]
 
+    @property
+    def memoire_ecrite(self) -> bool:
+        """Un savoir consigné ne se perd plus : il faut l'écriture et un lieu."""
+        return "ecriture" in self.decouvertes and bool(self.batiments.get("archives"))
+
+    @property
+    def chantiers_max(self) -> int:
+        """On ne peut pas mener trente chantiers à trois."""
+        return max(1, min(6, 1 + len([p for p in self.personnes if not p.enfant]) // 3))
+
+    def chantier_ouvert(self, cle: str) -> Chantier | None:
+        return next((c for c in self.chantiers if c.cle == cle), None)
+
     def personne(self, id: int) -> Personne | None:
         return next((p for p in self.personnes if p.id == id), None)
 
@@ -390,11 +410,17 @@ class Etat:
             prochain_id=terr.get("prochain_id", 1),
         )
         personnes = [Personne(**p) for p in d.pop("personnes", [])]
-        chantier = d.pop("chantier", None)
+        # compatibilité avec les sauvegardes à chantier unique
+        chantiers = d.pop("chantiers", None)
+        if chantiers is None:
+            ancien = d.pop("chantier", None)
+            chantiers = [ancien] if ancien else []
+        else:
+            d.pop("chantier", None)
         meteo = Meteo(**d.pop("meteo", {}))
         journal = Journal(**d.pop("journal", {"entrees": []}))
         etat = cls(territoire=terr, personnes=personnes, meteo=meteo, journal=journal, **d)
-        etat.chantier = Chantier(**chantier) if chantier else None
+        etat.chantiers = [Chantier(**c) for c in chantiers]
         return etat
 
 

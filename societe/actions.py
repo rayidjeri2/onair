@@ -210,8 +210,8 @@ def _tempete(etat: Etat, p: dict, alea: random.Random) -> str:
             reparables.remove(cle)
         detruits.append(MODELES[cle].nom)
     etat.stocks["planches"] *= 0.7
-    if etat.chantier:
-        etat.chantier.travail_fait *= 0.5
+    for chantier in etat.chantiers:
+        chantier.travail_fait *= 0.5
     return f"Tempête : {', '.join(detruits) if detruits else 'des dégâts matériels'}."
 
 
@@ -421,8 +421,8 @@ _a(cle="demolir", nom="Démolir", categorie="batir",
 def _chantier(etat: Etat, p: dict, alea: random.Random) -> str:
     from . import moteur
 
-    if etat.chantier:
-        moteur.annuler_chantier(etat)
+    if len(etat.chantiers) >= etat.chantiers_max and etat.chantiers:
+        moteur.annuler_chantier(etat, etat.chantiers[0].cle)
     moteur.lancer_chantier(etat, p["chantier"])
     return f"Chantier ouvert : {MODELES[p['chantier']].nom}."
 
@@ -519,6 +519,68 @@ def _repos(etat: Etat, p: dict, alea: random.Random) -> str:
 _a(cle="repos", nom="Décréter un repos", categorie="social",
    description="Une pause générale : l'énergie remonte, rien ne se produit.",
    effet=_repos)
+
+
+def _offrir_savoir(etat: Etat, p: dict, alea: random.Random) -> str:
+    from .savoirs import SAVOIRS
+
+    cle = p["savoir"]
+    if cle in etat.decouvertes:
+        return f"{SAVOIRS[cle].nom} était déjà connu."
+    etat.decouvertes.append(cle)
+    return f"{SAVOIRS[cle].nom} tombe du ciel, des siècles trop tôt."
+
+
+def _effacer_savoir(etat: Etat, p: dict, alea: random.Random) -> str:
+    from .savoirs import SAVOIRS
+
+    cle = p["savoir"]
+    if cle not in etat.decouvertes:
+        return f"{SAVOIRS[cle].nom} n'était pas connu."
+    etat.decouvertes.remove(cle)
+    etat.savoirs.pop(cle, None)
+    return f"{SAVOIRS[cle].nom} est effacé des mémoires."
+
+
+def _relancer_recherche(etat: Etat, p: dict, alea: random.Random) -> str:
+    from . import moteur
+
+    combien = 0
+    for personne in etat.personnes:
+        if personne.enfant or personne.metier:
+            continue
+        if combien >= int(p["chercheurs"]):
+            break
+        try:
+            moteur.affecter(etat, personne.id, "recherche")
+            combien += 1
+        except ValueError:
+            continue
+    return f"{combien} personne(s) mises à chercher. L'intendance rendra la main demain."
+
+
+def _enregistrer_savoirs() -> None:
+    from .savoirs import SAVOIRS
+
+    liste = sorted(SAVOIRS)
+    _a(cle="offrir_savoir", nom="Offrir une découverte", categorie="social",
+       description="Donner un savoir que la société n'a pas encore gagné : "
+                   "pour voir ce que change une technologie arrivée trop tôt.",
+       parametres=[Parametre("savoir", "Découverte", type="choix",
+                             defaut="metallurgie", options=liste)],
+       effet=_offrir_savoir)
+    _a(cle="effacer_savoir", nom="Effacer une découverte", categorie="epreuve",
+       description="Le savoir se perd. Ce qu'il débloquait redevient inaccessible.",
+       parametres=[Parametre("savoir", "Découverte", type="choix",
+                             defaut="agronomie", options=liste)],
+       effet=_effacer_savoir)
+    _a(cle="recherche", nom="Mettre des gens à chercher", categorie="social",
+       description="Détourner des bras vers la recherche, le temps d'une journée.",
+       parametres=[Parametre("chercheurs", "Combien", defaut=3, min=1, max=30)],
+       effet=_relancer_recherche)
+
+
+_enregistrer_savoirs()
 
 
 # --- application ----------------------------------------------------------

@@ -19,6 +19,7 @@ class Modele:
     travail: float  # jours-homme
     materiaux: dict[str, float] = field(default_factory=dict)
     prerequis: list[str] = field(default_factory=list)
+    savoir: str = ""            # découverte exigée pour seulement l'envisager
     population_min: int = 1
     repetable: bool = False
     description: str = ""
@@ -190,6 +191,63 @@ _m(cle="archives", nom="Archives du lieu", categorie="commun", travail=28,
    description="Écrire ce qu'on a appris, pour que la génération suivante ne recommence pas.",
    effets={"enseignement": 0.5, "gouvernance": 4, "cohesion": 0.08})
 
+# --- outillage et machines, ouverts par les découvertes -------------------
+_m(cle="moulin", nom="Moulin", categorie="atelier", travail=40,
+   materiaux={"pierre": 12, "bois": 8, "planches": 20}, prerequis=["atelier"],
+   savoir="charpente",
+   description="Moudre le grain sans bras : la farine se conserve mieux que l'épi.",
+   effets={"conservation": 0.18, "nourriture_jour": 1.5})
+_m(cle="aqueduc", nom="Aqueduc", categorie="eau", travail=55,
+   materiaux={"pierre": 25, "terre": 15}, prerequis=["reservoir"], savoir="hydraulique",
+   description="Amener l'eau de loin, en continu, sans personne pour la porter.",
+   effets={"eau_jour": 900, "eau_max": 12000})
+_m(cle="four_poterie", nom="Four de potier", categorie="atelier", travail=26,
+   materiaux={"terre": 14, "pierre": 8}, prerequis=["atelier"], savoir="poterie",
+   description="Jarres et tuiles : le grain reste sec, les toits tiennent.",
+   effets={"conservation": 0.15, "stock_max": 250})
+_m(cle="charrue", nom="Charrue", categorie="nourriture", travail=22,
+   materiaux={"planches": 10, "recup": 15}, prerequis=["forge"], savoir="metallurgie",
+   repetable=True,
+   description="Retourner la terre au lieu de la gratter : le rendement change d'échelle.",
+   effets={"rendement_agricole": 0.35})
+_m(cle="haut_fourneau", nom="Haut-fourneau", categorie="atelier", travail=60,
+   materiaux={"pierre": 30, "terre": 20, "bois": 15}, prerequis=["forge"],
+   savoir="metallurgie",
+   description="Produire du métal en quantité, au lieu de récupérer des ferrailles.",
+   effets={"outils_jour": 0.5, "recup_jour": 8.0})
+_m(cle="brouettes", nom="Brouettes et charrettes", categorie="atelier", travail=20,
+   materiaux={"planches": 16}, prerequis=["atelier"], savoir="roue", repetable=True,
+   description="Tout ce qu'on porte, on le roule désormais.",
+   effets={"rendement_bois": 0.2, "rendement_pierre": 0.25, "logistique": 0.1})
+_m(cle="attelage", nom="Attelage et bêtes de trait", categorie="nourriture", travail=45,
+   materiaux={"planches": 20, "bois": 10}, prerequis=["troupeau"], savoir="traction",
+   description="Un attelage laboure en un jour ce qu'une équipe ferait en dix.",
+   effets={"rendement_agricole": 0.45, "rendement_construction": 0.1})
+_m(cle="metier_tisser", nom="Métier à tisser", categorie="atelier", travail=38,
+   materiaux={"planches": 22, "recup": 10}, prerequis=["atelier"], savoir="engrenage",
+   description="Habiller tout le monde sans rien acheter au-dehors.",
+   effets={"confort": 14, "isolation": 1})
+_m(cle="scierie_hydraulique", nom="Scierie hydraulique", categorie="atelier", travail=55,
+   materiaux={"planches": 30, "pierre": 15, "recup": 25}, prerequis=["scierie", "reservoir"],
+   savoir="engrenage",
+   description="La rivière débite les troncs à la place des bras.",
+   effets={"planches_ratio": 3.0, "rendement_artisanat": 0.25})
+_m(cle="hopital", nom="Hôpital", categorie="commun", travail=70,
+   materiaux={"planches": 40, "pierre": 20}, prerequis=["dispensaire"], savoir="medecine",
+   population_min=12,
+   description="Soigner ce qui tuait : l'espérance de vie fait un bond.",
+   effets={"soin": 1.2, "salubrite": 18})
+_m(cle="atelier_mecanise", nom="Atelier mécanisé", categorie="atelier", travail=90,
+   materiaux={"planches": 45, "recup": 60, "pierre": 20}, prerequis=["haut_fourneau"],
+   savoir="vapeur", population_min=15,
+   description="La vapeur entraîne les machines : un artisan vaut désormais dix.",
+   effets={"rendement_artisanat": 0.6, "artisanat": 1.0, "outils_jour": 0.6})
+_m(cle="reseau_electrique", nom="Réseau électrique", categorie="energie", travail=80,
+   materiaux={"recup": 90, "planches": 20}, prerequis=["batteries"], savoir="electricite",
+   population_min=15,
+   description="Porter l'énergie jusque dans les maisons et les ateliers.",
+   effets={"confort": 18, "elec_max": 60, "rendement_artisanat": 0.2})
+
 # --- terre ----------------------------------------------------------------
 _m(cle="defrichage", nom="Défricher un hectare", categorie="terre", travail=10, repetable=True,
    description="Gagner de la terre utile sur la friche — et récupérer du bois.",
@@ -201,11 +259,16 @@ _m(cle="reforestation", nom="Planter une forêt", categorie="terre", travail=14,
 
 def disponibles(etat) -> list[dict]:
     """Chantiers proposables maintenant, avec la raison d'un éventuel blocage."""
+    from .savoirs import SAVOIRS
+
     resultat = []
     for m in MODELES.values():
         construit = etat.batiment(m.cle)
         raisons = []
         if construit and not m.repetable:
+            continue
+        if m.savoir and m.savoir not in etat.decouvertes:
+            # tant que la découverte n'est pas faite, le chantier n'existe pas
             continue
         for pre in m.prerequis:
             if not etat.batiment(pre):

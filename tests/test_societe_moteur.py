@@ -44,11 +44,11 @@ def test_une_personne_seule_survit_en_cueillant():
 def test_chantier_consomme_les_materiaux_et_le_travail():
     e = societe()
     moteur.lancer_chantier(e, "source")
-    assert e.chantier is not None
+    assert len(e.chantiers) == 1
     moteur.affecter(e, 1, "construction")
     moteur.avancer(e, 25)
     assert e.batiment("source") == 1
-    assert e.chantier is None
+    assert e.chantiers == []
 
 
 def test_prerequis_refuse():
@@ -63,11 +63,35 @@ def test_materiaux_manquants_refuses():
         moteur.lancer_chantier(e, "toilettes_seches")
 
 
-def test_un_seul_chantier_a_la_fois():
+def test_plusieurs_chantiers_mais_pas_a_l_infini():
     e = societe()
+    assert e.chantiers_max == 1  # seule, on ne mène qu'un chantier
     moteur.lancer_chantier(e, "source")
+    with pytest.raises(ValueError, match="chantiers ouverts"):
+        moteur.lancer_chantier(e, "potager")
+
+    moteur.faire_venir(e, 8)
+    assert e.chantiers_max >= 3
+    moteur.lancer_chantier(e, "potager")
+    assert len(e.chantiers) == 2
     with pytest.raises(ValueError, match="déjà en cours"):
         moteur.lancer_chantier(e, "potager")
+
+
+def test_les_chantiers_avancent_en_parallele():
+    e = societe()
+    moteur.faire_venir(e, 6)
+    moteur.lancer_chantier(e, "potager")      # 12 jours-homme
+    moteur.lancer_chantier(e, "defrichage")   # 10 jours-homme
+    for p in e.personnes:
+        if not p.enfant:
+            moteur.affecter(e, p.id, "construction")
+    moteur.avancer(e, 1)
+    assert len(e.chantiers) == 2
+    assert all(c.travail_fait > 0 for c in e.chantiers)
+    # les bras se partagent : chacun reçoit la moitié de l'effort
+    a, b = (c.travail_fait for c in e.chantiers)
+    assert abs(a - b) < 1e-6
 
 
 def test_annulation_rend_une_partie_des_materiaux():
@@ -144,7 +168,7 @@ def test_serialisation_complete():
     assert copie.jour == e.jour
     assert copie.population == e.population
     assert copie.batiments == e.batiments
-    assert copie.chantier == e.chantier
+    assert copie.chantiers == e.chantiers
     moteur.avancer(copie, 10)
     moteur.avancer(e, 10)
     assert copie.stocks == e.stocks
