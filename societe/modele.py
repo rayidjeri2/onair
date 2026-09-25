@@ -72,12 +72,18 @@ TYPES_PARCELLE = {
 }
 
 
+AGE_TRAVAIL = 14        # on ne confie pas de tâche avant cet âge
+AGE_ADULTE = 18
+AGE_FIN_FERTILITE = 45
+GESTATION = 274         # jours
+
+
 @dataclass
 class Personne:
     id: int
     nom: str
     age: int
-    arrivee: int  # jour d'arrivée
+    arrivee: int  # jour d'arrivée (ou de naissance)
     competences: dict[str, float] = field(default_factory=dict)
     tache: str = "construction"
     energie: float = 100.0
@@ -85,6 +91,39 @@ class Personne:
     moral: float = 70.0
     histoire: str = ""
     jours_par_tache: dict[str, int] = field(default_factory=dict)
+    # --- démographie
+    sexe: str = "f"               # "f" ou "h" : simplification pour la gestation
+    parents: list[int] = field(default_factory=list)
+    enfants: list[int] = field(default_factory=list)
+    partenaire: int | None = None
+    grossesse: int | None = None  # jours de gestation écoulés
+    autre_parent: int | None = None
+    nee_ici: bool = False
+    anniversaire: int = 0         # jour de l'année où l'âge augmente
+
+    @property
+    def enfant(self) -> bool:
+        return self.age < AGE_TRAVAIL
+
+    @property
+    def adulte(self) -> bool:
+        return self.age >= AGE_ADULTE
+
+    @property
+    def fertile(self) -> bool:
+        return self.sexe == "f" and AGE_ADULTE <= self.age <= AGE_FIN_FERTILITE
+
+    @property
+    def classe_age(self) -> str:
+        if self.age < 6:
+            return "petite enfance"
+        if self.age < AGE_TRAVAIL:
+            return "enfance"
+        if self.age < AGE_ADULTE:
+            return "adolescence"
+        if self.age < 60:
+            return "âge actif"
+        return "anciens"
 
     def __post_init__(self) -> None:
         for c in COMPETENCES:
@@ -93,6 +132,16 @@ class Personne:
     @property
     def competence_principale(self) -> str:
         return max(self.competences, key=lambda c: self.competences[c])
+
+    def part_ration(self) -> float:
+        """Un enfant mange moins qu'un adulte."""
+        if self.age < 5:
+            return 0.4
+        if self.age < AGE_TRAVAIL:
+            return 0.7
+        if self.age > 65:
+            return 0.85
+        return 1.0
 
     def facteur_age(self) -> float:
         """Les enfants et les anciens travaillent moins ; le pic est vers 30 ans."""
@@ -105,7 +154,10 @@ class Personne:
     def capacite_travail(self) -> float:
         """Jours-homme effectivement disponibles aujourd'hui (0 à ~1,1)."""
         forme = (0.45 * self.energie + 0.35 * self.sante + 0.20 * self.moral) / 100
-        return max(0.0, forme * self.facteur_age())
+        capacite = forme * self.facteur_age()
+        if self.grossesse is not None:
+            capacite *= 1.0 if self.grossesse < GESTATION * 0.6 else 0.55
+        return max(0.0, capacite)
 
     def efficacite(self, tache: str) -> float:
         """Rendement sur une tâche : compétence + habitude (spécialisation)."""
@@ -205,6 +257,10 @@ class Etat:
     journal: Journal = field(default_factory=Journal)
     historique: list[dict[str, float]] = field(default_factory=list)
     en_peril: bool = False
+    politique: dict[str, float] = field(default_factory=lambda: {"natalite": 0.5})
+    demographie: dict[str, float] = field(default_factory=lambda: {
+        "naissances": 0, "deces": 0, "ages_au_deces": 0.0, "couples_formes": 0,
+    })
     alertes: dict[str, int] = field(default_factory=dict)
     termine: str | None = None
 
@@ -240,6 +296,28 @@ class Etat:
             return 0.0
         return sum(getattr(p, champ) for p in self.personnes) / len(self.personnes)
 
+    def taux_dependance(self) -> float:
+        """Personnes à charge (enfants et anciens) par personne en âge de travailler."""
+        actifs = sum(1 for p in self.personnes if AGE_TRAVAIL <= p.age < 65)
+        charges = len(self.personnes) - actifs
+        return charges / actifs if actifs else float(charges)
+
+    def esperance_vie(self) -> float | None:
+        """Âge moyen au décès, une fois qu'il y a eu des décès."""
+        morts = self.demographie.get("deces", 0)
+        if not morts:
+            return None
+        return round(self.demographie["ages_au_deces"] / morts, 1)
+
+    def pyramide(self, pas: int = 10) -> list[dict[str, Any]]:
+        """Répartition par tranche d'âge, pour l'affichage."""
+        tranches: dict[int, dict[str, int]] = {}
+        for p in self.personnes:
+            cle = (p.age // pas) * pas
+            t = tranches.setdefault(cle, {"f": 0, "h": 0})
+            t[p.sexe if p.sexe in t else "f"] += 1
+        return [{"de": cle, "a": cle + pas - 1, **t} for cle, t in sorted(tranches.items())]
+
     def personne(self, id: int) -> Personne | None:
         return next((p for p in self.personnes if p.id == id), None)
 
@@ -258,6 +336,14 @@ class Etat:
             "moral": round(self.moyenne("moral"), 1),
             "sante": round(self.moyenne("sante"), 1),
             "energie": round(self.moyenne("energie"), 1),
+            "enfants": sum(1 for p in self.personnes if p.enfant),
+            "actifs": sum(1 for p in self.personnes if AGE_TRAVAIL <= p.age < 60),
+            "anciens": sum(1 for p in self.personnes if p.age >= 60),
+            "grossesses": sum(1 for p in self.personnes if p.grossesse is not None),
+            "age_moyen": round(self.moyenne("age"), 1),
+            "dependance": round(self.taux_dependance(), 2),
+            "esperance_vie": self.esperance_vie(),
+            "pyramide": self.pyramide(),
         }
         return d
 

@@ -9,8 +9,10 @@ from __future__ import annotations
 import random
 from typing import Any
 
+from . import demographie
 from .catalogue import MODELES, effet_total
 from .modele import (
+    AGE_TRAVAIL,
     COMPETENCES,
     TACHE_COMPETENCE,
     Chantier,
@@ -24,7 +26,9 @@ from .modele import (
 BESOIN_NOURRITURE = 1.0       # portions par personne et par jour
 BESOIN_EAU = 50.0             # litres par personne et par jour
 EAU_BASE_MAX = 400.0          # ce qu'on peut stocker sans réservoir
-EAU_NATURELLE = 70.0          # le ruisseau : de quoi tenir seul, pas à plusieurs
+EAU_NATURELLE = 150.0         # le ruisseau : de quoi tenir à deux ou trois, pas plus
+STOCK_NOURRITURE_BASE = 120.0  # réserve commune minimale
+STOCK_PAR_PERSONNE = 40.0      # ce que chaque foyer garde chez lui
 PORTIONS_PAR_JOUR_HOMME = 4.2
 CUEILLETTE_PAR_JOUR_HOMME = 3.0  # ce que rend la cueillette, sans parcelle
 PORTIONS_MAX_PAR_HECTARE = 8.0
@@ -33,10 +37,10 @@ PIERRE_PAR_JOUR_HOMME = 0.6
 TERRE_PAR_JOUR_HOMME = 2.0
 PLANCHES_PAR_STERE = 6.0
 EAU_PORTEE_PAR_JOUR_HOMME = 140.0
-GASPILLAGE_NOURRITURE = 0.018  # part des stocks perdue chaque jour
+GASPILLAGE_NOURRITURE = 0.012  # part des stocks perdue chaque jour
 CAPACITE_GOUVERNANCE_BASE = 5.0
 
-SAISON_RENDEMENT = {"printemps": 1.0, "été": 1.35, "automne": 1.15, "hiver": 0.2}
+SAISON_RENDEMENT = {"printemps": 1.0, "été": 1.35, "automne": 1.3, "hiver": 0.3}
 SAISON_SOLEIL = {"printemps": 1.0, "été": 1.3, "automne": 0.75, "hiver": 0.45}
 SAISON_TEMPERATURE = {"printemps": 14.0, "été": 24.0, "automne": 13.0, "hiver": 4.0}
 SAISON_PLUIE = {"printemps": 0.45, "été": 0.12, "automne": 0.5, "hiver": 0.55}
@@ -49,14 +53,17 @@ PRENOMS = [
 
 # --- création -------------------------------------------------------------
 
-def creer_societe(nom_fondateur: str = "Ana", age: int = 30, graine: int = 1) -> Etat:
+def creer_societe(nom_fondateur: str = "Ana", age: int = 30, graine: int = 1,
+                  sexe: str = "f") -> Etat:
     """Jour 0 : une personne débarque sur un million de km² de terre vierge."""
     etat = Etat(graine=graine, territoire=Territoire(km2=1_000_000.0))
     fondateur = Personne(
         id=1, nom=nom_fondateur.strip() or "Ana", age=age, arrivee=0,
         competences={c: 0.15 for c in COMPETENCES},
         tache="nourriture",
-        histoire="Arrivée seule, sans rien d'autre que ses mains.",
+        sexe=sexe if sexe in ("f", "h") else "f",
+        histoire="Arrivé seul, sans rien d'autre que ses mains." if sexe == "h"
+        else "Arrivée seule, sans rien d'autre que ses mains.",
     )
     fondateur.competences["construction"] = 0.3
     fondateur.competences["agriculture"] = 0.25
@@ -65,9 +72,14 @@ def creer_societe(nom_fondateur: str = "Ana", age: int = 30, graine: int = 1) ->
     etat.stocks.update({"nourriture": 30.0, "eau": 300.0, "outils": 1.0})
     etat.territoire.ajouter("friche", 100.0)
     etat.territoire.ajouter("foret", 40.0)
+    # l'installation : un toit et un champ, le point de départ de la société
+    etat.batiments["campement"] = 1
+    etat.territoire.ajouter("potager", 1.0)
     etat.journal = Journal()
     etat.journal.noter(0, f"{fondateur.nom} pose son sac. Un million de kilomètres carrés, "
                           "personne d'autre, et tout à faire.", "jalon")
+    etat.journal.noter(0, "Premier abri monté, premier champ défriché et semé. "
+                          "Une société commence.", "jalon")
     _mettre_a_jour_meteo(etat, random.Random(graine))
     _enregistrer_historique(etat)
     return etat
@@ -76,7 +88,7 @@ def creer_societe(nom_fondateur: str = "Ana", age: int = 30, graine: int = 1) ->
 # --- actions du joueur ----------------------------------------------------
 
 def ajouter_personne(etat: Etat, nom: str, age: int, specialite: str,
-                     histoire: str = "") -> Personne:
+                     histoire: str = "", sexe: str = "f") -> Personne:
     if specialite not in COMPETENCES:
         raise ValueError(f"spécialité inconnue : {specialite}")
     if not 1 <= age <= 100:
@@ -88,10 +100,12 @@ def ajouter_personne(etat: Etat, nom: str, age: int, specialite: str,
         arrivee=etat.jour,
         competences={c: 0.12 for c in COMPETENCES},
         tache="construction" if etat.chantier else "nourriture",
+        sexe=sexe if sexe in ("f", "h") else "f",
+        anniversaire=etat.jour_annee,
         histoire=histoire,
     )
     p.competences[specialite] = 0.55
-    if age < 14:
+    if age < AGE_TRAVAIL:
         p.tache = "repos"
         for c in COMPETENCES:
             p.competences[c] = 0.05
@@ -114,7 +128,16 @@ def affecter(etat: Etat, id_personne: int, tache: str) -> None:
     p = etat.personne(id_personne)
     if p is None:
         raise ValueError("personne inconnue")
+    if p.enfant and tache != "repos":
+        raise ValueError(f"{p.nom} n'a que {p.age} ans")
     p.tache = tache
+
+
+def regler_politique(etat: Etat, cle: str, valeur: float) -> None:
+    """Les orientations que le collectif se donne — pour l'instant : le désir d'enfants."""
+    if cle not in etat.politique:
+        raise ValueError(f"politique inconnue : {cle}")
+    etat.politique[cle] = max(0.0, min(1.0, float(valeur)))
 
 
 def lancer_chantier(etat: Etat, cle: str) -> Chantier:
@@ -170,7 +193,8 @@ def _un_jour(etat: Etat) -> None:
     _produire(etat, travail, alea)
     _avancer_chantier(etat, travail)
     _consommer(etat)
-    _mettre_a_jour_personnes(etat, travail)
+    _mettre_a_jour_personnes(etat, travail, alea)
+    demographie.passer_le_jour(etat, alea)
     _mettre_a_jour_cohesion(etat)
     _faire_murir(etat)
     _alerter(etat)
@@ -205,7 +229,9 @@ def coordination(etat: Etat) -> float:
     """Au-delà de ce que la gouvernance peut tenir, chaque personne coûte."""
     capacite = CAPACITE_GOUVERNANCE_BASE + effet_total(etat, "gouvernance")
     surcharge = max(0.0, etat.population - capacite)
-    return 1.0 / (1.0 + 0.075 * surcharge) * (0.75 + 0.25 * etat.cohesion)
+    # la perte sature : un gros dépassement fait mal sans être immédiatement fatal
+    penalite = 0.085 * surcharge ** 0.75
+    return 1.0 / (1.0 + penalite) * (0.75 + 0.25 * etat.cohesion)
 
 
 def _repartir_travail(etat: Etat) -> dict[str, float]:
@@ -213,7 +239,7 @@ def _repartir_travail(etat: Etat) -> dict[str, float]:
     facteur = coordination(etat)
     travail: dict[str, float] = {t: 0.0 for t in TACHE_COMPETENCE}
     for p in etat.personnes:
-        if p.tache == "repos":
+        if p.tache == "repos" or p.enfant:
             continue
         travail[p.tache] += p.capacite_travail() * p.efficacite(p.tache) * facteur
         p.jours_par_tache[p.tache] = p.jours_par_tache.get(p.tache, 0) + 1
@@ -281,9 +307,22 @@ def _produire(etat: Etat, travail: dict[str, float], alea: random.Random) -> Non
                        + effet_total(etat, "eolien") * (0.6 + alea.random() * 0.8))
     s["electricite"] = min(elec_max, s["electricite"] + production_elec)
 
-    # --- pertes
+    # --- ce qu'on ne peut ni ranger ni entretenir finit par se perdre
+    s["outils"] = min(s["outils"], 3.0 + 2.0 * etat.population)
+    s["recup"] = min(s["recup"], 200.0 + 60.0 * etat.population
+                     + effet_total(etat, "stock_max"))
+
+    # --- pertes : ce qui dépasse la capacité de conservation est perdu
     conservation = min(0.8, effet_total(etat, "conservation"))
     s["nourriture"] *= 1.0 - GASPILLAGE_NOURRITURE * (1.0 - conservation)
+    grenier = capacite_grenier(etat)
+    if s["nourriture"] > grenier:
+        perdu = s["nourriture"] - grenier
+        s["nourriture"] = grenier
+        if perdu > grenier * 0.05:
+            _dire_une_fois(etat, "grenier", 30,
+                           f"Les réserves débordent : {perdu:.0f} portions perdues faute de place. "
+                           "Il faut des caves et des hangars.")
     for cle in s:
         s[cle] = max(0.0, round(s[cle], 3))
 
@@ -319,13 +358,13 @@ def _terminer_chantier(etat: Etat) -> None:
 def _consommer(etat: Etat) -> None:
     s = etat.stocks
     population = etat.population
-    besoin = population * BESOIN_NOURRITURE
+    besoin = sum(p.part_ration() for p in etat.personnes) * BESOIN_NOURRITURE
     s["nourriture"] -= besoin
     etat.en_peril = s["nourriture"] < 0
     ration = 1.0 if s["nourriture"] >= 0 else max(0.0, 1.0 + s["nourriture"] / max(besoin, 1e-9))
     s["nourriture"] = max(0.0, s["nourriture"])
 
-    besoin_eau = population * BESOIN_EAU
+    besoin_eau = sum(0.6 if p.enfant else 1.0 for p in etat.personnes) * BESOIN_EAU
     s["eau"] -= besoin_eau
     soif = s["eau"] < 0
     s["eau"] = max(0.0, s["eau"])
@@ -340,7 +379,8 @@ def _consommer(etat: Etat) -> None:
     etat._soif = soif  # type: ignore[attr-defined]
 
 
-def _mettre_a_jour_personnes(etat: Etat, travail: dict[str, float]) -> None:
+def _mettre_a_jour_personnes(etat: Etat, travail: dict[str, float],
+                             alea: random.Random) -> None:
     ration = getattr(etat, "_ration", 1.0)
     soif = getattr(etat, "_soif", False)
     abri = effet_total(etat, "abri")
@@ -349,7 +389,9 @@ def _mettre_a_jour_personnes(etat: Etat, travail: dict[str, float]) -> None:
     soin = travail["soin"] * (1.0 + effet_total(etat, "soin"))
     enseignement = travail["enseignement"] * (1.0 + effet_total(etat, "enseignement"))
     froid = etat.meteo.temperature < 5 and etat.stocks["bois"] <= 0.5
-    abrite = abri >= etat.population
+    # l'abri se partage : la couverture est progressive, pas tout ou rien
+    couverture = min(1.0, abri / etat.population) if etat.population else 1.0
+    abrite = couverture >= 1.0
     partis = []
 
     for p in etat.personnes:
@@ -358,7 +400,7 @@ def _mettre_a_jour_personnes(etat: Etat, travail: dict[str, float]) -> None:
             # sous un certain seuil, le corps impose le repos
             p.energie = min(100.0, p.energie + 22.0)
         else:
-            p.energie = max(0.0, p.energie - 12.0 + (9.0 if abrite else 3.0)
+            p.energie = max(0.0, p.energie - 12.0 + (3.0 + 6.0 * couverture)
                             + 6.0 * ration + min(6.0, soin * 3.0))
             p.energie = min(100.0, p.energie)
 
@@ -369,7 +411,7 @@ def _mettre_a_jour_personnes(etat: Etat, travail: dict[str, float]) -> None:
         delta += salubrite * 0.12 - 0.6
         delta += -3.0 if froid else 0.0
         delta += min(4.0, soin * 2.5)
-        delta += -1.2 if not abrite else 0.0
+        delta += -1.6 * (1.0 - couverture)
         delta -= max(0.0, (p.age - 65)) * 0.05
         p.sante = max(0.0, min(100.0, p.sante + delta))
 
@@ -379,13 +421,17 @@ def _mettre_a_jour_personnes(etat: Etat, travail: dict[str, float]) -> None:
         cible += 12.0 * (etat.cohesion - 0.5)
         cible += min(12.0, effet_total(etat, "variete") * 0.35)
         cible -= 45.0 * (1.0 - ration)
-        cible += 6.0 if abrite else -9.0
+        cible += -9.0 + 15.0 * couverture
         cible += 5.0 if p.energie > 55 else -8.0
         cible += 4.0 if etat.population > 1 else -9.0  # la solitude pèse
         cible += 3.0 if etat.chantier else -3.0  # avoir un cap commun
+        cible += 4.0 if p.partenaire is not None else 0.0
+        cible += min(4.0, 1.5 * sum(1 for e in etat.personnes if e.id in p.enfants))
         p.moral = max(0.0, min(100.0, p.moral + (cible - p.moral) * 0.12))
 
         # apprentissage : par la pratique, et par l'enseignement des autres
+        if p.enfant:
+            continue
         comp = TACHE_COMPETENCE.get(p.tache)
         if comp:
             p.competences[comp] = min(1.0, p.competences[comp] + 0.0022 * (1.1 - p.competences[comp]))
@@ -394,17 +440,37 @@ def _mettre_a_jour_personnes(etat: Etat, travail: dict[str, float]) -> None:
             for c in COMPETENCES:
                 p.competences[c] = min(1.0, p.competences[c] + gain)
 
-        if etat.jour % 365 == 0:
-            p.age += 1
-
         if p.sante <= 0:
-            partis.append((p, "meurt"))
-        elif p.moral <= 4 and etat.population > 1:
-            partis.append((p, "s'en va"))
+            partis.append((p, "meurt d'épuisement"))
+        elif _veut_partir(etat, p, alea):
+            partis.append((p, "s'en va, découragé" if p.sexe == "h" else "s'en va, découragée"))
 
     for p, raison in partis:
-        etat.personnes.remove(p)
         etat.journal.noter(etat.jour, f"{p.nom} {raison}.", "drame")
+        if raison.startswith("meurt"):
+            demographie._retirer(etat, p)
+        else:
+            etat.personnes.remove(p)
+            _detacher(etat, p)
+
+
+def _veut_partir(etat: Etat, p: Personne, alea: random.Random) -> bool:
+    """On ne part pas d'un coup, et on ne laisse pas ses enfants derrière soi."""
+    if not p.adulte or p.moral > 6 or etat.population <= 2:
+        return False
+    if any(e.id in p.enfants and e.enfant for e in etat.personnes):
+        return False
+    if p.grossesse is not None:
+        return False
+    return alea.random() < 0.12
+
+
+def _detacher(etat: Etat, p: Personne) -> None:
+    for autre in etat.personnes:
+        if autre.partenaire == p.id:
+            autre.partenaire = None
+        if autre.autre_parent == p.id:
+            autre.autre_parent = None
 
 
 def _mettre_a_jour_cohesion(etat: Etat) -> None:
@@ -468,6 +534,12 @@ def _evenement(etat: Etat, alea: random.Random) -> None:
         return
 
 
+def _dire_une_fois(etat: Etat, cle: str, delai: int, texte: str, genre: str = "alerte") -> None:
+    if etat.jour - etat.alertes.get(cle, -999) >= delai:
+        etat.alertes[cle] = etat.jour
+        etat.journal.noter(etat.jour, texte, genre)
+
+
 def _alerter(etat: Etat, delai: int = 20) -> None:
     """Prévient le joueur des situations critiques, sans noyer le journal."""
     def dire(cle: str, texte: str, genre: str = "alerte") -> None:
@@ -479,6 +551,11 @@ def _alerter(etat: Etat, delai: int = 20) -> None:
         dire("faim", "Les réserves de nourriture sont vides. On mange moins que nécessaire.")
     if etat.stocks["eau"] <= 0 and etat.population:
         dire("soif", "Plus d'eau stockée. Il faut aller la chercher, ou la capter.")
+    if etat.population and eau_apport_jour(etat) < eau_besoin_jour(etat):
+        manque = round(eau_besoin_jour(etat) - eau_apport_jour(etat))
+        dire("debit_eau",
+             f"Ce qui arrive naturellement ne couvre plus les besoins : {manque} litres manquent "
+             "chaque jour. Il faut porter l'eau, ou capter la source.", "alerte")
     if etat.population and etat.moyenne("sante") < 45:
         dire("sante", "La santé du groupe se dégrade sérieusement.")
     if etat.population and etat.moyenne("moral") < 25:
@@ -510,21 +587,50 @@ def _enregistrer_historique(etat: Etat) -> None:
         "cohesion": round(etat.cohesion, 3),
         "batiments": sum(etat.batiments.values()),
         "hectares": round(etat.territoire.hectares_amenages, 2),
+        "enfants": sum(1 for p in etat.personnes if p.enfant),
+        "naissances": etat.demographie["naissances"],
+        "deces": etat.demographie["deces"],
+        "age_moyen": round(etat.moyenne("age"), 1),
     })
     del etat.historique[:-4000]
 
 
+def capacite_grenier(etat: Etat) -> float:
+    """Ce que la société peut conserver : les foyers, plus les caves et les hangars."""
+    return (STOCK_NOURRITURE_BASE + STOCK_PAR_PERSONNE * etat.population
+            + effet_total(etat, "stock_max"))
+
+
+def eau_apport_jour(etat: Etat) -> float:
+    """Ce qui rentre chaque jour sans aller le chercher : ruisseau, source, captage."""
+    return EAU_NATURELLE + effet_total(etat, "eau_jour")
+
+
+def eau_besoin_jour(etat: Etat) -> float:
+    return sum(0.6 if p.enfant else 1.0 for p in etat.personnes) * BESOIN_EAU
+
+
 def apercu(etat: Etat) -> dict[str, Any]:
     """Quelques indicateurs utiles à l'affichage."""
-    besoin = etat.population * BESOIN_NOURRITURE
+    besoin = sum(p.part_ration() for p in etat.personnes) * BESOIN_NOURRITURE
     return {
         "autonomie_nourriture_jours": round(etat.stocks["nourriture"] / besoin, 1) if besoin else 0,
-        "autonomie_eau_jours": round(etat.stocks["eau"] / (etat.population * BESOIN_EAU), 1)
+        "autonomie_eau_jours": round(etat.stocks["eau"] / eau_besoin_jour(etat), 1)
         if etat.population else 0,
+        "eau_apport_jour": round(eau_apport_jour(etat)),
+        "eau_besoin_jour": round(eau_besoin_jour(etat)),
+        "eau_deficit": round(eau_besoin_jour(etat) - eau_apport_jour(etat)),
+        "grenier": round(capacite_grenier(etat)),
         "abri": effet_total(etat, "abri"),
         "confort": effet_total(etat, "confort"),
         "capacite_gouvernance": CAPACITE_GOUVERNANCE_BASE + effet_total(etat, "gouvernance"),
         "coordination": round(coordination(etat), 3),
         "eau_max": EAU_BASE_MAX + effet_total(etat, "eau_max"),
         "elec_max": effet_total(etat, "elec_max"),
+        "naissances": etat.demographie["naissances"],
+        "deces": etat.demographie["deces"],
+        "couples": sum(1 for p in etat.personnes if p.partenaire is not None) // 2,
+        "risques": {
+            p.id: round(demographie.risque_annuel(etat, p) * 100, 2) for p in etat.personnes
+        },
     }

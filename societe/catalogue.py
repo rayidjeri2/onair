@@ -59,8 +59,12 @@ _m(cle="source", nom="Captage de la source", categorie="eau", travail=6,
    effets={"eau_jour": 300})
 _m(cle="reservoir", nom="Réservoir et adduction gravitaire", categorie="eau", travail=20,
    materiaux={"pierre": 4, "recup": 30}, prerequis=["source"], repetable=True,
-   description="Stocker l'eau en hauteur : elle arrive ensuite toute seule.",
-   effets={"eau_max": 8000, "captage": 1})
+   description="Stocker l'eau en hauteur, et récupérer celle des toitures.",
+   effets={"eau_max": 8000, "captage": 1, "eau_jour": 80})
+_m(cle="puits", nom="Puits", categorie="eau", travail=24,
+   materiaux={"pierre": 6}, prerequis=["source"], repetable=True,
+   description="Creuser plus bas que la source. C'est ce qui permet au groupe de grandir.",
+   effets={"eau_jour": 320})
 _m(cle="filtre", nom="Filtre à sable lent", categorie="eau", travail=10,
    materiaux={"pierre": 2, "recup": 10}, prerequis=["source"],
    description="De l'eau potable sans électricité ni produit.",
@@ -72,7 +76,7 @@ _m(cle="toilettes_seches", nom="Toilettes sèches", categorie="eau", travail=6,
 _m(cle="etang", nom="Retenue d'eau", categorie="eau", travail=45,
    materiaux={"terre": 30}, prerequis=["source"], population_min=4,
    description="Une réserve pour les étés secs, et un lieu où se baigner.",
-   effets={"eau_max": 40000, "irrigation": 1, "confort": 6})
+   effets={"eau_max": 40000, "eau_jour": 260, "irrigation": 1, "confort": 6})
 
 # --- nourriture -----------------------------------------------------------
 _m(cle="potager", nom="Potager", categorie="nourriture", travail=12, repetable=True,
@@ -174,6 +178,17 @@ _m(cle="conseil", nom="Conseil du collectif", categorie="commun", travail=10,
    prerequis=["place"], population_min=8,
    description="Formaliser la décision collective avant que la coordination ne s'effondre.",
    effets={"gouvernance": 10, "cohesion": 0.15})
+
+_m(cle="quartiers", nom="Fédération de quartiers", categorie="commun", travail=55,
+   materiaux={"planches": 40, "pierre": 12}, prerequis=["conseil"], population_min=20,
+   repetable=True,
+   description="Découper le collectif en groupes qui décident chez eux et se fédèrent : "
+               "la seule façon connue de dépasser la trentaine sans se paralyser.",
+   effets={"gouvernance": 16, "cohesion": 0.12, "confort": 4})
+_m(cle="archives", nom="Archives du lieu", categorie="commun", travail=28,
+   materiaux={"planches": 20}, prerequis=["ecole"], population_min=12,
+   description="Écrire ce qu'on a appris, pour que la génération suivante ne recommence pas.",
+   effets={"enseignement": 0.5, "gouvernance": 4, "cohesion": 0.08})
 
 # --- terre ----------------------------------------------------------------
 _m(cle="defrichage", nom="Défricher un hectare", categorie="terre", travail=10, repetable=True,

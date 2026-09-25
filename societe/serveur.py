@@ -55,6 +55,7 @@ def traiter(chemin: str, corps: dict[str, Any]) -> dict[str, Any]:
                 nom_fondateur=corps.get("nom", "Ana"),
                 age=int(corps.get("age", 30)),
                 graine=int(corps.get("graine", 1)),
+                sexe=str(corps.get("sexe", "f")),
             )
             return instantane(PARTIE.etat)
 
@@ -74,12 +75,20 @@ def traiter(chemin: str, corps: dict[str, Any]) -> dict[str, Any]:
                 age=int(corps.get("age", 28)),
                 specialite=str(corps.get("specialite", "agriculture")),
                 histoire=str(corps.get("histoire", "")),
+                sexe=str(corps.get("sexe", "f")),
             )
         elif chemin == "/api/affectation":
             moteur.affecter(etat, int(corps["id"]), str(corps["tache"]))
         elif chemin == "/api/affectations":
+            # affectation groupée : on ignore silencieusement ceux qui ne peuvent pas
+            # prendre la tâche (les enfants), au lieu de rejeter tout le lot
             for id_personne, tache in corps.get("affectations", {}).items():
-                moteur.affecter(etat, int(id_personne), str(tache))
+                try:
+                    moteur.affecter(etat, int(id_personne), str(tache))
+                except ValueError:
+                    continue
+        elif chemin == "/api/politique":
+            moteur.regler_politique(etat, str(corps["cle"]), float(corps["valeur"]))
         elif chemin == "/api/chantier":
             moteur.lancer_chantier(etat, str(corps["cle"]))
         elif chemin == "/api/annuler-chantier":

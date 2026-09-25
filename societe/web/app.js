@@ -47,6 +47,7 @@ function rendre() {
   rendreChantier();
   rendreCatalogue();
   rendreRessources();
+  rendreDemographie();
   rendreGraphiques();
   rendreJournal();
   if (S.etat.termine) arreterAuto();
@@ -61,7 +62,9 @@ function rendreBarre() {
   const ind = [
     ["Habitants", nb(d.population), ""],
     ["Vivres", `${nb(a.autonomie_nourriture_jours, 1)} j`, seuil(a.autonomie_nourriture_jours, 10, 3)],
-    ["Eau", `${nb(a.autonomie_eau_jours, 1)} j`, seuil(a.autonomie_eau_jours, 4, 1)],
+    ["Eau", a.eau_deficit > 0 ? `−${nb(a.eau_deficit)} L/j` : `${nb(a.autonomie_eau_jours, 1)} j`,
+      a.eau_deficit > 0 ? (a.autonomie_eau_jours < 2 ? "alerte" : "prudence")
+        : seuil(a.autonomie_eau_jours, 4, 1)],
     ["Moral", nb(d.moral), seuil(d.moral, 40, 22)],
     ["Santé", nb(d.sante), seuil(d.sante, 60, 35)],
     ["Cohésion", nb(e.cohesion * 100), seuil(e.cohesion * 100, 55, 35)],
@@ -87,11 +90,25 @@ function rendrePersonnes() {
     const spec = Object.entries(p.competences).sort((a, b) => b[1] - a[1])[0];
     const options = Object.entries(taches).map(([k, v]) =>
       `<option value="${k}" ${p.tache === k ? "selected" : ""}>${v}</option>`).join("");
+    const enfant = p.age < 14;
+    const nomDe = (id) => (e.personnes.find((q) => q.id === id) || {}).nom;
+    const etiquettes = [];
+    if (enfant) etiquettes.push(`<span class="etiq enfant">${p.age < 6 ? "petite enfance" : "enfant"}</span>`);
+    if (p.grossesse != null) etiquettes.push(
+      `<span class="etiq grossesse">enceinte — ${Math.max(0, 274 - p.grossesse)} j</span>`);
+    if (p.partenaire) etiquettes.push(`<span class="etiq">avec ${nomDe(p.partenaire) || "?"}</span>`);
+    const vivants = p.enfants.filter((id) => nomDe(id));
+    if (vivants.length) etiquettes.push(
+      `<span class="etiq">${vivants.length} enfant${vivants.length > 1 ? "s" : ""}</span>`);
+    if (p.nee_ici) etiquettes.push(`<span class="etiq">né${p.sexe === "f" ? "e" : ""} ici</span>`);
+    const risque = (S.apercu.risques || {})[p.id];
     return `<div class="personne">
       <div class="tete"><span class="nom">${p.nom}</span>
-        <span class="meta">${p.age} ans · ${spec[0]} ${Math.round(spec[1] * 100)} %</span></div>
+        <span class="meta" title="risque de décès dans l'année : ${risque ?? "?"} %">${p.age} ans ·
+          ${enfant ? p.classe_age || "enfant" : `${spec[0]} ${Math.round(spec[1] * 100)} %`}</span></div>
       <div class="jauges">${jauge("énergie", p.energie)}${jauge("santé", p.sante)}${jauge("moral", p.moral)}</div>
-      <select data-personne="${p.id}">${options}</select>
+      ${etiquettes.length ? `<div class="famille">${etiquettes.join("")}</div>` : ""}
+      <select data-personne="${p.id}" ${enfant ? "disabled" : ""}>${options}</select>
       ${p.tache === "construction" && !e.chantier
         ? `<div class="avert">aucun chantier ouvert : cette journée est perdue</div>` : ""}
       ${p.histoire ? `<div class="histoire">« ${p.histoire} »</div>` : ""}
@@ -266,7 +283,10 @@ function rendreGraphiques() {
       ["moral", "var(--s4)", ech.map((p) => p.moral)],
       ["santé", "var(--s3)", ech.map((p) => p.sante)]] },
     { titre: "Réserves de vivres", series: [
-      ["portions", "var(--s5)", ech.map((p) => p.nourriture)]] },
+      ["portions", "var(--s3)", ech.map((p) => p.nourriture)]] },
+    { titre: "Naissances et décès cumulés", series: [
+      ["naissances", "var(--s5)", ech.map((p) => p.naissances ?? 0)],
+      ["décès", "var(--texte-3)", ech.map((p) => p.deces ?? 0)]] },
   ];
   for (const bloc of blocs) {
     const legende = document.createElement("div");
@@ -285,6 +305,61 @@ function rendreGraphiques() {
     }
     cible.append(svg);
   }
+}
+
+function rendreDemographie() {
+  const e = S.etat, d = e.derive, a = S.apercu;
+  const tuiles = [
+    ["Naissances", nb(a.naissances)],
+    ["Décès", nb(a.deces)],
+    ["Âge moyen", nb(d.age_moyen, 1)],
+    ["Âge au décès", d.esperance_vie != null ? nb(d.esperance_vie, 1) : "—"],
+    ["Couples", nb(a.couples)],
+    ["Personnes à charge", `${nb(d.dependance, 2)} / actif`],
+  ];
+  $("#d-tuiles").innerHTML = tuiles.map(([t, v]) =>
+    `<div class="demo-tuile"><div class="et">${t}</div><div class="va">${v}</div></div>`).join("");
+
+  // pyramide des âges
+  const svg = $("#d-pyramide");
+  svg.textContent = "";
+  const p = d.pyramide || [];
+  if (!p.length) return;
+  const H = Math.max(60, p.length * 18 + 16);
+  svg.setAttribute("viewBox", `0 0 300 ${H}`);
+  const max = Math.max(1, ...p.map((t) => Math.max(t.f, t.h)));
+  const axe = 150, demi = 104, haut = 14;
+  p.slice().reverse().forEach((t, i) => {
+    const y = 8 + i * 18;
+    const lf = (t.f / max) * demi, lh = (t.h / max) * demi;
+    if (t.f) svg.append(el("rect", { x: axe - 22 - lf, y, width: lf, height: haut, rx: 3,
+      fill: "var(--s5)" }));
+    if (t.h) svg.append(el("rect", { x: axe + 22, y, width: lh, height: haut, rx: 3,
+      fill: "var(--s1)" }));
+    svg.append(el("text", { x: axe, y: y + 11, fill: "var(--texte-2)", "font-size": 10.5,
+      "text-anchor": "middle" }, `${t.de}–${t.a}`));
+    if (t.f) svg.append(el("text", { x: axe - 26 - lf, y: y + 11, fill: "var(--texte-3)",
+      "font-size": 10, "text-anchor": "end" }, t.f));
+    if (t.h) svg.append(el("text", { x: axe + 26 + lh, y: y + 11, fill: "var(--texte-3)",
+      "font-size": 10 }, t.h));
+  });
+
+  // curseur de natalité
+  const curseur = $("#d-natalite");
+  const valeur = Math.round((e.politique.natalite ?? 0.5) * 100);
+  if (document.activeElement !== curseur) curseur.value = valeur;
+  const mots = valeur === 0 ? "aucun enfant voulu"
+    : valeur < 30 ? "on attend d'être installés"
+    : valeur < 70 ? "des enfants quand c'est possible"
+    : "autant d'enfants que le lieu peut en porter";
+  $("#d-natalite-libelle").textContent = `Désir d'enfants — ${mots}`;
+  $("#d-natalite-note").textContent =
+    "Les naissances dépendent aussi de la santé, des vivres, des places à l'abri " +
+    "et de la charge des tout-petits.";
+  curseur.oninput = () => {
+    $("#d-natalite-libelle").textContent = `Désir d'enfants — ${curseur.value} %`;
+  };
+  curseur.onchange = () => api("/api/politique", { cle: "natalite", valeur: curseur.value / 100 });
 }
 
 function rendreJournal() {
@@ -342,6 +417,7 @@ $("#b-theme").onclick = () => {
 /* --- accueil --- */
 $("#a-commencer").onclick = () => api("/api/nouvelle", {
   nom: $("#a-nom").value, age: +$("#a-age").value, graine: +$("#a-graine").value,
+  sexe: $("#a-sexe").value,
 });
 $("#a-charger").onclick = async () => {
   const nom = prompt("Nom de la sauvegarde à reprendre", "partie");
@@ -369,6 +445,7 @@ modale.addEventListener("close", () => {
     nom: $("#n-nom").value,
     age: +$("#n-age").value,
     specialite: $("#n-specialite").value,
+    sexe: $("#n-sexe").value,
     histoire: $("#n-histoire").value,
   });
 });

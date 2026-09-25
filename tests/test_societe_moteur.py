@@ -15,6 +15,9 @@ def test_depart_une_seule_personne_sur_un_million_de_km2():
     assert e.territoire.km2 == 1_000_000
     assert e.jour == 0 and e.saison == "printemps"
     assert e.stocks["nourriture"] > 0
+    # elle s'installe : un abri et un champ, comme point de départ
+    assert e.batiment("campement") == 1
+    assert e.territoire.surface("potager") == 1.0
 
 
 def test_deterministe_a_graine_fixee():
@@ -40,18 +43,18 @@ def test_une_personne_seule_survit_en_cueillant():
 
 def test_chantier_consomme_les_materiaux_et_le_travail():
     e = societe()
-    moteur.lancer_chantier(e, "campement")
+    moteur.lancer_chantier(e, "source")
     assert e.chantier is not None
     moteur.affecter(e, 1, "construction")
-    moteur.avancer(e, 15)
-    assert e.batiment("campement") == 1
+    moteur.avancer(e, 25)
+    assert e.batiment("source") == 1
     assert e.chantier is None
 
 
 def test_prerequis_refuse():
     e = societe()
     with pytest.raises(ValueError, match="prérequis"):
-        moteur.lancer_chantier(e, "cabane")
+        moteur.lancer_chantier(e, "scierie")
 
 
 def test_materiaux_manquants_refuses():
@@ -62,9 +65,9 @@ def test_materiaux_manquants_refuses():
 
 def test_un_seul_chantier_a_la_fois():
     e = societe()
-    moteur.lancer_chantier(e, "campement")
+    moteur.lancer_chantier(e, "source")
     with pytest.raises(ValueError, match="déjà en cours"):
-        moteur.lancer_chantier(e, "source")
+        moteur.lancer_chantier(e, "potager")
 
 
 def test_annulation_rend_une_partie_des_materiaux():
@@ -134,7 +137,7 @@ def test_une_arrivee_relance_une_societe_eteinte():
 
 def test_serialisation_complete():
     e = societe()
-    moteur.lancer_chantier(e, "campement")
+    moteur.lancer_chantier(e, "source")
     moteur.ajouter_personne(e, "Tomas", 28, "eau")
     moteur.avancer(e, 40)
     copie = Etat.depuis_dict(e.vers_dict())
@@ -159,6 +162,7 @@ def test_catalogue_coherent():
 def test_disponibles_signale_les_blocages():
     e = societe()
     par_cle = {c["cle"]: c for c in disponibles(e)}
-    assert not par_cle["campement"]["bloque"]
-    assert par_cle["cabane"]["bloque"]
+    assert not par_cle["source"]["bloque"]
+    assert par_cle["scierie"]["bloque"]
     assert par_cle["conseil"]["bloque"]
+    assert "campement" not in par_cle  # déjà monté au départ, non répétable
